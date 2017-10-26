@@ -1,0 +1,13 @@
+nose
+nbformat
+nbconvert
+jupyter
+notebook
+matplotlib
+pandas
+jupyter_contrib_nbextensions
+tmm
+numpy
+scipy
+packaging
+sparsegrad
