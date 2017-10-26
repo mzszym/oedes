@@ -16,4 +16,4 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-version = '0.0.8'
+version = '0.0.8p1'

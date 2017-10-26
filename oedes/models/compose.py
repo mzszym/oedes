@@ -25,7 +25,7 @@ import itertools
 import warnings
 from oedes.util import TODOWarning
 import logging
-
+import scipy.sparse.csgraph
 
 class PrefixDict:
     def __init__(self, d, prefix):

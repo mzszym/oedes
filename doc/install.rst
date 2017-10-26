@@ -1,7 +1,11 @@
 Installation
 ------------
 
-`oedes` source code can be obtained by running
+`oedes` can be most simply installed by running
+
+   pip install oedes
+
+The most recent source can be obtained by running
 
    git clone https://github.com/mzszym/oedes
 
