@@ -26,6 +26,8 @@ import subprocess
 import tempfile
 import time
 
+array_hooks = []
+
 
 @contextmanager
 def printall():
@@ -55,6 +57,9 @@ def dict2array(dct):
 
 
 def nb_store_array(x, atol=0., rtol=1e-7, label=None):
+    for hook in array_hooks:
+        if hook(x, atol=atol, rtol=rtol, label=label):
+            return
     x = np.asarray(x)
     if x.dtype == np.longdouble:
         x = np.asarray(x, dtype=np.double)

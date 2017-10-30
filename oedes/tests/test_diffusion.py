@@ -19,17 +19,10 @@
 # This tests if diffusion equation is solved correctly with different
 # boundary conditions
 
-try:
-    ipython = get_ipython()
-    import matplotlib.pylab as plt
-    from oedes import plot
-    from oedes.testing import store
-except BaseException:
-    ipython = None
+import matplotlib.pylab as plt
+from oedes.testing import store
 
-    def store(*args, **kwargs):
-        pass
-
+make_plots = False
 
 from oedes import solve, bdf1adapt, models, transientsolve
 from oedes.fvm import mesh1d, Poisson, TransportCharged
@@ -41,6 +34,7 @@ import unittest
 from oedes.models import Zero, Equal
 from oedes import mpl
 
+
 def integrate_c_internal(eq, c):
     return np.sum((eq.mesh.cells['volume'] * c)[eq.mesh.internal.idx])
 
@@ -50,7 +44,7 @@ def integrate_c_all(eq, c):
 
 
 def run_diffusion(L, times, bc_equation=None,
-                  integrate_c=integrate_c_internal, rtol=1e-3, atol=0., return_context = False, **kwargs):
+                  integrate_c=integrate_c_internal, rtol=1e-3, atol=0., return_context=False, **kwargs):
     b = models.BaseModel()
     mesh = mesh1d(L, dx_boundary=L * 1e-5)
     # Poisson's equation should be there
@@ -88,9 +82,9 @@ def run_diffusion(L, times, bc_equation=None,
         pass
     for ts in c.timesteps():
         update_conservation(ts.time, ts.output())
-        if ipython is not None:
-            ylim = [0., np.amax(ts.x)*1.1]
-            p=mpl.forcontext(ts)
+        if make_plots:
+            ylim = [0., np.amax(ts.x) * 1.1]
+            p = mpl.forcontext(ts)
             p.allspecies(settings={})
             plt.ylim(ylim)
             plt.title('t=%e' % ts.time)
@@ -99,7 +93,7 @@ def run_diffusion(L, times, bc_equation=None,
     for i, species in enumerate(b.species):
         assert np.allclose(
             conservation[:, i + 1], conservation[0, i + 1], rtol=rtol, atol=atol)
-    if ipython is not None:
+    if make_plots:
         for i, species in enumerate(b.species):
             plt.plot(conservation[:, 0], conservation[:, i + 1], 'o-')
         plt.xscale('log')
@@ -120,27 +114,27 @@ class TestDiffusion(unittest.TestCase):
 
     def test_isolated(self):
         return run_diffusion(1., bc_equation=lambda eq: [], integrate_c=integrate_c_all, times=[
-                             1e-9, 1e-7, 1e-5, 1e-3, 1e-1, 1e1 ], **test_species)
+                             1e-9, 1e-7, 1e-5, 1e-3, 1e-1, 1e1], **test_species)
 
     def test_zero(self):
         return run_diffusion(1., bc_equation=lambda eq: [Zero('electrode0')], integrate_c=integrate_c_all, times=[
-                             1e-9, 1e-7, 1e-5, 1e-3, 1e-1, 1e1 ], atol=1e100, **test_species)
+                             1e-9, 1e-7, 1e-5, 1e-3, 1e-1, 1e1], atol=1e100, **test_species)
 
     def test_periodic(self):
         return run_diffusion(1., bc_equation=lambda eq: [Equal(eq, 'electrode1')], integrate_c=integrate_c_all, times=[
-                             1e-9, 1e-7, 1e-5, 1e-3, 1e-1, 1e1 ], **test_species)
+                             1e-9, 1e-7, 1e-5, 1e-3, 1e-1, 1e1], **test_species)
 
     def test_periodic2(self):
         return run_diffusion(1., bc_equation=lambda eq: [Equal(eq, 'electrode0')], integrate_c=integrate_c_all, times=[
-                             1e-9, 1e-7, 1e-5, 1e-3, 1e-1, 1e1 ], part1=(1., lambda x: np.exp(-4 * (x - 0.25)**2)), part2=(5., lambda x: np.cos(20 * x)**4))
+                             1e-9, 1e-7, 1e-5, 1e-3, 1e-1, 1e1], part1=(1., lambda x: np.exp(-4 * (x - 0.25)**2)), part2=(5., lambda x: np.cos(20 * x)**4))
 
     def test_periodic3(self):
         return run_diffusion(1., bc_equation=lambda eq: [Equal(eq, 'electrode1')], integrate_c=integrate_c_all, times=[
-                             1e-9, 1e-7, 1e-5, 1e-3, 1e-1, 1e1 ], part1=(1., lambda x: np.exp(-4 * (x - 0.25)**2)), part2=(5., lambda x: np.cos(20 * x)**4))
+                             1e-9, 1e-7, 1e-5, 1e-3, 1e-1, 1e1], part1=(1., lambda x: np.exp(-4 * (x - 0.25)**2)), part2=(5., lambda x: np.cos(20 * x)**4))
 
     def test_mixed(self):
         return run_diffusion(1., bc_equation=lambda eq: [Zero('electrode1'), Equal(eq, 'electrode0')], integrate_c=integrate_c_all, times=[
-                             1e-9, 1e-7, 1e-5, 1e-3, 1e-1, 1e1 ], part1=(1., lambda x: np.exp(-4 * (x - 0.25)**2)), part2=(5., lambda x: np.cos(20 * x)**4), atol=1e100)
+                             1e-9, 1e-7, 1e-5, 1e-3, 1e-1, 1e1], part1=(1., lambda x: np.exp(-4 * (x - 0.25)**2)), part2=(5., lambda x: np.cos(20 * x)**4), atol=1e100)
 
     def runTest(self):
         pass

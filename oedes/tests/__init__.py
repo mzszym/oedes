@@ -16,4 +16,6 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-version = '0.0.10'
+from . import test_ad
+from . import test_diffusion
+from . import test_poisson

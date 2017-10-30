@@ -150,6 +150,7 @@ class context_plotting:
         self.default_settings_potential = Settings.potential_x_nm
         self.default_settings_E = Settings.E_x_nm
         self.default_settings_Ef = Settings.Ef_x_nm
+        self.default_settings_selector = dict()
 
     def getimpl(self, mesh):
         if self._impl is None:
@@ -195,7 +196,7 @@ class context_plotting:
 
     def selector(self, expr, *args, **kwargs):
         if 'settings' not in kwargs:
-            kwargs['settings'] = default_settings
+            kwargs['settings'] = self.default_settings_selector
         want_label = 'label' not in kwargs
         for legendkey, parts in self.select(expr):
             if want_label:
