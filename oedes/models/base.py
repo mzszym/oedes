@@ -233,13 +233,14 @@ class BaseModel(CompositeModel):
         c = dict([(eq.prefix, x[eq.idx]) for eq in self.species])
         ct = dict([(eq.prefix, xt[eq.idx]) for eq in self.species])
         loc.update(dict(T=T, Vt=Vt, potential=potential, E=E, Et=Et, epsilon=epsilon, Ecellv=Ecellv, Ecellm=Ecellm,
-                        c=c, ct=ct, FdS_boundary={}, J_boundary={}, Ef={}, dos={}))
+                        c=c, ct=ct, FdS_boundary={}, J_boundary={}, Ef={}, dos={}, dos_data={}))
         for eq in self.species:
             if eq.prefix in self.species_dos:
                 dos = self.species_dos[eq.prefix]
+                loc['dos'][eq.prefix] = dos
+                loc['dos_data'][eq.prefix] = dict()
                 Ef = dos.QuasiFermiLevel(eq, loc)
                 loc['Ef'][eq.prefix] = Ef
-                loc['dos'][eq.prefix] = dos
         loc['mu'] = dict()
         loc['v_D'] = dict([(eq.prefix, self.species_v_D[eq.prefix](eq, loc))
                            for eq in self.species if eq.prefix])

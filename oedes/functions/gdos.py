@@ -20,9 +20,24 @@ from oedes import ad
 import numpy as np
 import scipy.special
 import scipy.integrate
+import scipy.interpolate
+import scipy.version
+from packaging.version import Version
+
+if Version(scipy.version.version) < Version('0.19.0'):
+    class make_interp_spline:
+        def __init__(self,x,y,k=3):
+            self.obj=scipy.interpolate.UnivariateSpline(x,y,s=0,k=k)
+
+        def __call__(self,x,nu=0):
+            if np.asarray(x).dtype == np.longdouble:
+                x = np.asarray(x, dtype=np.double)
+            return self.obj.__call__(x,nu=nu)
+else:
+    make_interp_spline=scipy.interpolate.make_interp_spline
 
 
-class AbstractGaussFermiIntegralImpl(object):
+class GaussFermiBase_(object):
     """
     Abstract implementation of Gauss-Fermi integral:
     I(a,b) = 1/sqrt(pi) \int_{-\infty}{+\infty} dx exp(-x^2)/(1.+exp(a*x+b))
@@ -42,97 +57,123 @@ class AbstractGaussFermiIntegralImpl(object):
     also specified:
     - 0<=a<=a_max (for all calculations)
     - I_min<=I<=I_max (for calculation of b solving I(a,b)=I)
-    """
 
+    Functions with underscore operate on internal representation of I, v=f(I).
+    """
+    
     maxiter = 20
     a_max = None
     I_min = None
     I_max = None
-
-    def nevaluate(self, a, b, need):
+    atol = 0.
+    rtol = 0.
+    
+    def _nevaluate(self, a, b, need_value = False, need_da = False, need_db = False, need_d2aa = False, need_d2ab = False, need_d2bb = False):
         """
-        Perform numerical evaluation of needed quantities need with known
-        parameters a,b. In need, 'I' denotes I(a,b), 'da' denotes dI/da,
-        'db' denotes dI/db, 'd2ab' denotes d2I/(dadb) and 'd2bb' denotes
-        d2I/db2.
+        Evaluate F (if need_value), and its derivatives (for example, dF/da if need_da and return 'da').
         """
         raise NotImplementedError()
-
-    def nsolve_b(self, a, i, b0=None, halley=True, tol=1e-14):
+    def _halley(self, function, b0, tol, maxiter):
         """
-        Solve equation I(a,b)=i for b with known a.
+        Solve equation F(a,b)=i for b. function should return F, F', F'' or 0.
         """
-        if b0 is None:
-            # 1e-20 is added to avoid NaN, has no effect on calculation
-            b = np.where(i < 0.1, -np.log(i) + 0.25 * a **
-                         2, np.log(1.0 / (i + 1e-20) - 1.))
-        else:
-            b = b0
-        need = ['I', 'db']
-        if halley:
-            need.append('d2bb')
-        for itno in range(self.maxiter):
-            values = self.nevaluate(a, b, need=need)
-            I = values['I']
-            df = values['db']
-            if halley:
-                d2f = values['d2bb']
-            else:
-                d2f = 0.
-            f = I - i
-            if np.amax(np.abs(f) / i) < tol:
+        b = b0.copy()
+        for itno in range(maxiter):
+            f, df, d2f = function(b)
+            if np.all(np.abs(f) < tol):
                 return b
             delta = 2. * f * df / (2. * df * df - f * d2f)
             if not np.isfinite(delta).all():
                 raise RuntimeError('numeric error')
             b -= delta
         raise RuntimeError('iteration limit exceeded')
-
-    def I(self, a, b):
+    def _guess_b(self, a, v):
+        raise NotImplementedError()
+    def _nsolve_b(self, a, v, b0 = None):
+        tol = self.rtol * v + self.atol
+        if b0 is None:
+            b0 = self._guess_b(a, v)
+        def function(b):
+            e=self._nevaluate(a, b, need_value = True, need_db = True, need_d2bb = True)
+            return e['value']-v, e['db'], e['d2bb']
+        return self._halley(function, b0, tol, self.maxiter)
+    def _value(self, a, b):
+        v=self._nevaluate(ad.nvalue(a), ad.nvalue(b), need_value = True, need_da = isinstance(a,ad.forward.value), need_db = isinstance(b,ad.forward.value))
         def _I(a, b):
-            return self.nevaluate(a, b, need=['I'])['I']
-
+            return v['value']
         def _I_deriv(args, value):
-            a, b = args
-            values = self.nevaluate(a, b, need=['da', 'db'])
-            yield lambda: values['da']
-            yield lambda: values['db']
+            yield lambda: v['da']
+            yield lambda: v['db']
         return ad.custom_function(_I, _I_deriv)(a, b)
-
-    def dIdb(self, a, b):
+    def _dvdb(self, a, b):
+        v=self._nevaluate(ad.nvalue(a), ad.nvalue(b), need_value = False, need_db=True, need_d2ab=isinstance(a,ad.forward.value), need_d2bb=isinstance(b,ad.forward.value))
         def _dIdb(a, b):
-            return self.nevaluate(a, b, need=['db'])['db']
-
+            return v['db']
         def _dIdb_deriv(args, value):
-            a, b = args
-            values = self.nevaluate(a, b, need=['d2ab', 'd2bb'])
-            yield lambda: values['d2ab']
-            yield lambda: values['d2bb']
+            yield lambda: v['d2ab']
+            yield lambda: v['d2bb']
         return ad.custom_function(_dIdb, _dIdb_deriv)(a, b)
-
-    def b(self, a, i, b0=None):
-        def _b(a, i):
-            return self.nsolve_b(a, i, b0=b0, halley=True)
-
+    def _b(self, a, v, b0=None):
+        b = self._nsolve_b(ad.nvalue(a), ad.nvalue(v), b0=b0)
+        def _b(a, v):
+            return b
         def _b_deriv(args, value):
-            a, i = args
+            a_, i_ = args
             b = value
-            values = self.nevaluate(a, b, need=['da', 'db'])
-            dIda, dIdb = values['da'], values['db']
-            dbdI = 1. / dIdb
-            yield lambda: -dbdI * dIda
+            values = self._nevaluate(a_, b, need_da = isinstance(a,ad.forward.value), need_db = True)
+            dbdI = 1. / values['db']
+            yield lambda: -dbdI * values['da']
             yield lambda: dbdI
-        return ad.custom_function(_b, _b_deriv)(a, i)
-
+        return ad.custom_function(_b, _b_deriv)(a, v)
     def __call__(self, a, b):
         return self.I(a, b)
 
+class GaussFermiBase(GaussFermiBase_):
+    rtol = 1e-14
+    atol = 0.
+    
+    def _guess_b(self, a, i):
+        # 1e-20 is added to avoid NaN, has no effect on calculation
+        return np.where(i < 0.1, -np.log(i) + 0.25 * a **
+                        2, np.log(1.0 / (i + 1e-20) - 1.))
+    
+    def I(self, a, b):
+        return self._value(a,b)
 
-class GaussFermiIntegralH(AbstractGaussFermiIntegralImpl):
+    def dIdb(self, a, b):
+        return self._dvdb(a,b)
+
+    def b(self, a, i, b0=None):
+        return self._b(a, i, b0=b0)
+
+class GaussFermiLogBase(GaussFermiBase_):
+    atol = 1e-13
+    rtol = 0.
+    
+    def I(self, a, b):
+        v=self._value(a,b)
+        l_max=np.log(self.I_max)
+        v=ad.where(v<=l_max,v,l_max)
+        return ad.exp(v)
+
+    def b(self, a, i, b0=None):
+        return self._b(a, ad.log(i), b0=b0)
+
+    def dIdb(self, a, b):
+        v=self._nevaluate(ad.nvalue(a), ad.nvalue(b), need_value = True, need_da=isinstance(a,ad.forward.value), need_db=True, need_d2ab=isinstance(a,ad.forward.value), need_d2bb=isinstance(b,ad.forward.value))
+        i=ad.exp(v['value'])
+        def _dIdb(a, _):
+            return i*v['db']
+        def _dIdb_deriv(args, value):
+            yield lambda: i*(v['d2ab']+v['da']*v['db'])
+            yield lambda: i*(v['d2bb']+v['db']*v['db'])
+        return ad.custom_function(_dIdb, _dIdb_deriv)(a, b)
+    
+class GaussFermiIntegralH(GaussFermiBase):
     """GaussFermiIntegral implemented using Gauss-Hermite quadrature"""
 
     def __init__(self, n, a_max):
-        AbstractGaussFermiIntegralImpl.__init__(self)
+        super(GaussFermiIntegralH,self).__init__()
         self.maxiter = 20
         self.a_max = a_max
         self.I_min = 1e-30
@@ -140,20 +181,22 @@ class GaussFermiIntegralH(AbstractGaussFermiIntegralImpl):
         _x, _w = scipy.special.h_roots(n)
         self.X_W = list(zip(_x, _w / np.sqrt(np.pi)))
 
-    def nevaluate(self, a, b, need):
-        I, da, db, d2ab, d2bb = None, None, None, None, None
-        if 'I' in need:
+    def _nevaluate(self, a, b, need_value = False, need_da = False, need_db = False, need_d2aa = False, need_d2ab = False, need_d2bb = False):
+        I, da, db, d2aa, d2ab, d2bb = None, None, None, None, None, None
+        if need_value:
             I = 0.
-        if 'da' in need:
+        if need_da:
             da = 0.
-        if 'db' in need:
+        if need_db:
             db = 0.
-        if 'd2ab' in need:
+        if need_d2aa:
+            d2aa = 0.
+        if need_d2ab:
             d2ab = 0.
-        if 'd2bb' in need:
+        if need_d2bb:
             d2bb = 0.
         need_first = da is not None or db is not None
-        need_second = d2ab is not None or d2bb is not None
+        need_second = d2aa is not None or d2ab is not None or d2bb is not None
         need_deriv = need_first or need_second
         for x, w in self.X_W:
             axpb = a * x + b
@@ -172,37 +215,114 @@ class GaussFermiIntegralH(AbstractGaussFermiIntegralImpl):
                         db += w_df
                 if need_second:
                     w_ddf = w_df * (1. - 2. * u_f)
+                    if d2aa is not None:
+                        d2aa += w_ddf * x * x
                     if d2ab is not None:
                         d2ab += w_ddf * x
                     if d2bb is not None:
-                        d2bb += w_ddf
-                    # nb: d2aa=w_ddf*x*x
-        loc = locals()
-        return dict((k, loc[k]) for k in need)
+                        d2bb += w_ddf                    
+        return dict(value=I,da=da,db=db,d2aa=d2aa,d2ab=d2ab,d2bb=d2bb)
 
 
-class GaussFermiIntegralReference(AbstractGaussFermiIntegralImpl):
+class GaussFermiIntegralReference(GaussFermiBase):
     """
     Reference implementation for checking accuracy, which uses adaptive
     quadrature.
     Only calculation of I is supported.
     """
 
-    def nevaluate(self, a, b, need):
-        if not need:
-            return dict()
-        if list([v for v in need if v != 'I']):
+    def _nevaluate(self, a, b, **kwargs):
+        need_value = kwargs.pop('need_value', False)
+        if any(kwargs.values()):
             raise NotImplementedError()
-
         def _f(x):
             return np.exp(-x * x) / (1 + np.exp(a * x + b))
         v = scipy.integrate.quad(_f, -28, 28,
                                  epsrel=1e-12, epsabs=1e-40)
-        return dict(I=v[0] / np.sqrt(np.pi))
+        return dict(value=v[0] / np.sqrt(np.pi))
 
+class UnivariateInterpolatedGaussFermi(GaussFermiLogBase):
+    def __init__(self,impl,a,n=1000,k=5):
+        super(UnivariateInterpolatedGaussFermi,self).__init__()
+        self.a=a
+        self.a_max = impl.a_max
+        self.I_min = impl.I_min
+        self.I_max = impl.I_max
+        self.b_min,self.b_max=map(lambda b:impl.b(a,b),(impl.I_min,impl.I_max))
+        self.btab=np.linspace(self.b_min,self.b_max,n)
+        _i=impl.I(ad.forward.seed(a),self.btab)
+        self.logItab=np.log(ad.nvalue(_i))
+        self.dlogIdatab=1./ad.nvalue(_i)*_i.gradient.tocsr().todense().A1
+        assert np.all(np.diff(self.logItab)>0)
+        self.spline=make_interp_spline(self.btab[::-1],self.logItab[::-1],k=k)
+        self.daspline=make_interp_spline(self.btab[::-1],self.dlogIdatab[::-1],k=k)
 
-def diffusion_enhancement(nsigma_as_a, c, impl, full_output=False):
-    b = impl.b(nsigma_as_a, c)
+    def _guess_b(self,a,v):
+        return self.btab[np.clip(np.searchsorted(self.logItab,v),0,len(self.btab)-1)]
+
+    def _nevaluate(self, a, b, **tasks):
+        if np.any(a != self.a):
+            raise ValueError('a is different than precalculated')
+        if np.asarray(a).shape == (0,):
+            assert np.asarray(b).shape in [ (), (0,) ]
+            b=np.zeros(0,dtype=np.common_type(a,b))
+        result={}
+        if tasks.pop('need_value',False):
+            result['value']=self.spline(b)
+        if tasks.pop('need_db',False):
+            result['db']=self.spline(b,1)
+        if tasks.pop('need_d2bb',False):
+            result['d2bb']=self.spline(b,2)
+        if tasks.pop('need_da',False):
+            result['da']=self.daspline(b)
+        if tasks.pop('need_d2ab',False):
+            result['d2ab']=self.daspline(b,1)
+        if any(tasks.values()):
+            raise NotImplementedError()
+        return result
+    
+    
+class UnivariateInterpolatedGaussFermiFactory(object):
+    def __init__(self, impl, **kwargs):
+        self.I_min=impl.I_min
+        self.I_max=impl.I_max
+        self.a_max=impl.a_max
+        self.impl = impl
+        self.kwargs = kwargs
+        self.d = {}
+    
+    def _get(self,a):
+        a=ad.nvalue(a)
+        if a.shape:
+            if len(a)>0:
+                if np.count_nonzero(a != a[0])>0:
+                    raise ValueError('a must have all values equal')
+                a=a[0]
+            else:
+                # a is empty: return anything
+                if self.d:
+                    return next(iter(self.d.values()))
+                else:
+                    return self._get(0)
+        a=float(a)
+        u=self.d.get(a,None)
+        if u is None:
+            u=UnivariateInterpolatedGaussFermi(self.impl,np.asarray(a),**self.kwargs)
+            self.d[a]=u
+        return u
+
+    def I(self,a,b):
+        return self._get(a).I(a,b)
+    
+    def b(self,a,I):
+        return self._get(a).b(a,I)
+    
+    def dIdb(self,a,b):
+        return self._get(a).dIdb(a,b)
+    
+def diffusion_enhancement(nsigma_as_a, c, impl, b=None,full_output=False):
+    if b is None:
+        b = impl.b(nsigma_as_a, c)
     factor = -c / impl.dIdb(nsigma_as_a, b)
     if full_output:
         return dict(factor=factor, b=b)

@@ -75,5 +75,5 @@ def nsigma_inverse(nsigma, Vt):
     return nsigma * Vt
 
 
-def g3(nsigma, c, impl=gdos.defaultImpl):
-    return gdos.diffusion_enhancement(nsigma * np.sqrt(2.), c, impl)
+def g3(nsigma, c, impl=gdos.defaultImpl, b=None):
+    return gdos.diffusion_enhancement(nsigma * np.sqrt(2.), c, impl, b=b)
