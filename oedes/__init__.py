@@ -25,6 +25,7 @@ del logger
 from . context import *
 from . util import *
 from . param import *
+from . sensitivity import *
 from . import models
 from . import testing
 from . import optical

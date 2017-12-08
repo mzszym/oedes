@@ -21,6 +21,7 @@ from sparsegrad import *
 
 from sparsegrad.forward import nvalue
 
+
 def isscalar(x):
     return not forward.nvalue(x).shape
 
@@ -29,11 +30,12 @@ def getitem(x, idx):
     if idx is None:
         return x
     if not isscalar(idx) and not len(idx):
-        return np.zeros(0,dtype=nvalue(x).dtype)
+        return np.zeros(0, dtype=nvalue(x).dtype)
     if isscalar(x):
         return x
     else:
         return x[idx]
+
 
 sparsesum = sparsesum_bare
 
@@ -45,20 +47,21 @@ def custom_function(f, df):
         return f(*args)
     return f
 
+
 def branch(cond, iftrue, iffalse):
     if isscalar(cond):
         if cond:
             return iftrue(None)
         else:
             return iffalse(None)
-    n=len(cond)
-    r=np.arange(len(cond))
-    ixtrue=r[cond]
-    ixfalse=r[np.logical_not(cond)]
+    n = len(cond)
+    r = np.arange(len(cond))
+    ixtrue = r[cond]
+    ixfalse = r[np.logical_not(cond)]
     vtrue = iftrue(ixtrue)
     vfalse = iffalse(ixfalse)
     if isscalar(vtrue):
-        vtrue=np.ones_like(ixtrue)*vtrue
+        vtrue = np.ones_like(ixtrue) * vtrue
     if isscalar(vfalse):
-        vfalse=np.ones_like(ixfalse)*vfalse
-    return sparsesum_bare(n, [(ixtrue,vtrue), (ixfalse,vfalse)])
+        vfalse = np.ones_like(ixfalse) * vfalse
+    return sparsesum_bare(n, [(ixtrue, vtrue), (ixfalse, vfalse)])

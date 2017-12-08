@@ -82,7 +82,8 @@ class GaussianDOS(DOS):
         c = where(c > self.c_eps, c, self.c_eps)
         c = where(c < self.c_max, c, self.c_max)
         if 'b' not in vars['dos_data'][eq.prefix]:
-            vars['dos_data'][eq.prefix]['b']=self.impl.b(np.sqrt(2.) * nsigma, c)
+            vars['dos_data'][eq.prefix]['b'] = self.impl.b(
+                np.sqrt(2.) * nsigma, c)
         return sigma, nsigma, N0, Vt, c
 
     def Ef(self, eq, vars):
@@ -118,8 +119,18 @@ class GaussianDOS(DOS):
             assert self.c_eps >= self.gdosImpl.I_min
             assert self.nsigma_max * np.sqrt(2.) <= self.gdosImpl.a_max
             inlimit_g3 = c < self.g3_max_c
-            b_g3 = branch(inlimit_g3, lambda ix : getitem(vars['dos_data'][eq.prefix]['b'], ix), lambda ix : self.impl.b(np.sqrt(2.) * getitem(nsigma, ix), self.g3_max_c))
+            b_g3 = branch(inlimit_g3,
+                          lambda ix: getitem(vars['dos_data'][eq.prefix]['b'],
+                                             ix),
+                          lambda ix: self.impl.b(np.sqrt(2.) * getitem(nsigma,
+                                                                       ix),
+                                                 self.g3_max_c))
             c_g3 = where(inlimit_g3, c, self.g3_max_c)
             D_face = D_face * \
-                eq.mesh.faceaverage(_egdm.g3(nsigma, c_g3, impl=self.impl, b=b_g3))
+                eq.mesh.faceaverage(
+                    _egdm.g3(
+                        nsigma,
+                        c_g3,
+                        impl=self.impl,
+                        b=b_g3))
         return eq.v(mu_face, vars['E']), D_face

@@ -5,11 +5,9 @@ Organic Electronic Device Simulator (oedes) documentation
    :maxdepth: 2
    :caption: Contents:
 
-   doc/introduction
-   doc/install
-   doc/usage
-   doc/tutorial
-   doc/examples
+   introduction
+   install
+   usage
 
 Indices and tables
 ==================

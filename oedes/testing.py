@@ -25,6 +25,7 @@ import fnmatch
 import subprocess
 import tempfile
 import time
+import functools
 
 array_hooks = []
 
@@ -76,6 +77,21 @@ def nb_store_array(x, atol=0., rtol=1e-7, label=None):
 
 
 store = nb_store_array
+
+
+class _store_result(object):
+    def __init__(self, func, **kwargs):
+        self.func = func
+        self.store_kwargs = kwargs
+
+    def __call__(self, *args, **kwargs):
+        result = self.func(*args, **kwargs)
+        nb_store_array(result, **self.store_kwargs)
+        return result
+
+
+def stored(**kwargs):
+    return functools.partial(_store_result, **kwargs)
 
 
 def stored_arrays(cells):

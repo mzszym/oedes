@@ -27,15 +27,3 @@ class TODOWarning(UserWarning):
 
 import warnings
 warnings.simplefilter('ignore', TODOWarning)
-
-
-def progress(msg):
-    global _prevlen
-    msg = str(msg)
-    if len(msg) < _prevlen:
-        pad = ' ' * (_prevlen - len(msg))
-    else:
-        pad = ''
-    _prevlen = len(msg)
-    sys.stdout.write('\r' + msg + pad)
-    sys.stdout.flush()

@@ -159,8 +159,8 @@ class TransientSolver:
 # <api>
 
 
-def bdf1adapt(model, x, params, t, t1, dt, mindt=1e-15, xt=None, dtrlim=(0.5, 2.), relfail=10., reltol=1e-2, abstol=1e-15, dtrfailsolve=0.1,
-              dtrfaillte=0.1, weight=None, skip=2, use_predictor=False, final_matchstep=True, solve=solve, maxsteps=np.inf, maxdt=np.inf, **kwargs):
+def bdf1adapt_(model, x, params, t, t1, dt, mindt=1e-15, xt=None, dtrlim=(0.5, 2.), relfail=10., reltol=1e-2, abstol=1e-15, dtrfailsolve=0.1,
+               dtrfaillte=0.1, weight=None, skip=2, use_predictor=False, final_matchstep=True, solve=solve, maxsteps=100, maxdt=np.inf, **kwargs):
     """
     Adaptive transient solver based on BDF1. Solve from time :t0: to at least :t1:, with initial timestep :dt:.
     :xt: is xt at t, can be None.
@@ -214,6 +214,7 @@ def bdf1adapt(model, x, params, t, t1, dt, mindt=1e-15, xt=None, dtrlim=(0.5, 2.
             xn = solve(model, initial_guess, params, tconst=-x / dt,
                        tshift=1. / dt, time=tn, solver=solver, **kwargs)
             xtn = (xn - x) / dt
+            dt_ = dt
         except SolverError:
             dt *= dtrfailsolve
             logger.info('failure in solve, reducing timestep to %e' % (dt))
@@ -228,7 +229,7 @@ def bdf1adapt(model, x, params, t, t1, dt, mindt=1e-15, xt=None, dtrlim=(0.5, 2.
                 failures += 1
                 logger.info('error too big, reducing timestep to %e' % (dt))
                 continue
-            e = goalnorm / dnorm
+            e = goalnorm / (dnorm + 1e-100)
             dt = np.clip(dt * np.sqrt(e), min(mindt,
                                               dtrlim[0] * dt), min(dtrlim[1] * dt, maxdt))
         t, x, xt = tn, xn, xtn
@@ -239,19 +240,33 @@ def bdf1adapt(model, x, params, t, t1, dt, mindt=1e-15, xt=None, dtrlim=(0.5, 2.
             d['tsadapt.dt'] = dt
             d['tsadapt.time'] = t
             return d
-        yield (t, x, xt, output)
+        yield (t, dt_, x, xt, output)
 
+
+def bdf1adapt(*args, **kwargs):
+    for t, dt, x, xt, output in bdf1adapt_(*args, **kwargs):
+        yield t, x, xt, output
 
 # In[43]:
 
 # <api>
-def transientsolve(model, x0, params, timesteps,
-                   solve=solve, mindt=1e-15, force=False, **kwargs):
-    "Return sequence of transient solutions (t,x(t),xt,output) for predefined timesteps"
+
+
+def transientsolve_(model, x0, params, timesteps,
+                    solve=solve, mindt=1e-15, force=False, maxsteps=100, **kwargs):
+    "Return sequence of transient solutions (t,dt,x(t),xt,output) for predefined timesteps"
     x = x0
     solver = TransientSolver()
     logger = logging.getLogger('oedes.solver.transientsolve')
+    assert len(timesteps) - 1 <= maxsteps, 'not enough steps allowed'
+
+    def check_step(step):
+        if step > maxsteps:
+            raise SolverError(
+                'maximum number of %s timesteps reached' % maxsteps)
+    step = 0
     for i, dt in enumerate(np.diff(timesteps)):
+        check_step(step)
         t0, t1 = timesteps[i:i + 2]
         try:
             logger.info('t=%e dt=%e' % (t0, dt))
@@ -259,19 +274,25 @@ def transientsolve(model, x0, params, timesteps,
             xn = solve(model, x, params, tconst=-x / dt,
                        tshift=1. / dt, time=t1, solver=solver, **kwargs)
             x, xt = xn, (xn - x) / dt
-            r = (timesteps[i + 1], x, xt,
-                 lambda: model.output(t1, x, xt, params))
+            step += 1
+            yield (timesteps[i + 1], dt, x, xt,
+                   lambda: model.output(t1, x, xt, params))
         except SolverError:
             if not force:
                 raise
             logger.info('timestep failed')
             if 0.5 * (t1 - t0) < mindt:
                 raise
-            # try with half timestep
-            _, r = list(transientsolve(model, x, params, [
-                        t0, 0.5 * (t0 + t1), t1], **kwargs))
-            x, xt = r[1:3]
-        yield r
+            for t, dt, x, xt, output in transientsolve_(
+                    model, x, params, [t0, 0.5 * (t0 + t1), t1], maxsteps=np.inf, **kwargs):
+                check_step(step)
+                step += 1
+                yield t, dt, x, xt, output
+
+
+def transientsolve(*args, **kwargs):
+    for t, dt, x, xt, output in transientsolve_(*args, **kwargs):
+        yield t, x, xt, output
 
 
 def asarrays(generator, outputs=['J'], monitor=lambda t, x, xt, out: None):

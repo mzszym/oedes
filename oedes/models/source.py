@@ -62,7 +62,7 @@ class Interface(object):
         add(other_vars_eq['boundary_sources'], other_sources, self.other_bidx)
 
 
-class LangevinRecombination(BulkSource):
+class _Recombination(BulkSource):
     "Langevinian recombination term, to be used"
 
     def __init__(self, mesh, electron_prefix='electron',
@@ -81,20 +81,61 @@ class LangevinRecombination(BulkSource):
         return []
 
     def evaluate(self, vars):
-        mu = vars['mu']
-        c = vars['c']
+        R = self.evaluate_recombination(vars)
         full_output = vars['full_output']
-        R = functions.LangevinRecombination(mu[self.electron], mu[self.hole], c[self.electron], c[
-            self.hole], self.mesh.cells['epsilon'], npi=vars['params']['npi'])
         if full_output is not None:
             assert self.output_name not in full_output
             full_output[self.output_name] = R
         return R
 
 
+class LangevinRecombination(_Recombination):
+    def evaluate_recombination(self, vars):
+        mu = vars['mu']
+        c = vars['c']
+        params = vars['params']
+        return functions.LangevinRecombination(mu[self.electron], mu[self.hole], c[self.electron], c[
+            self.hole], vars['epsilon'], npi=vars['params']['npi'])
+
+
+class DirectRecombination(_Recombination):
+    def __init__(self, *args, **kwargs):
+        param_name = kwargs.pop('param_name', 'beta')
+        super(DirectRecombination, self).__init__(*args, **kwargs)
+        self.param_name = param_name
+
+    def evaluate_recombination(self, vars):
+        mu = vars['mu']
+        c = vars['c']
+        return vars['params'][self.param_name] * \
+            (c[self.electron] * c[self.hole] - vars['params']['npi'])
+
+
+class DirectGeneration(BulkSource):
+    def __init__(self, eqs, function, prefix='absorption'):
+        assert sum(eq.z for eq in eqs) == 0
+        self.function = function
+        self.eqs = eqs
+        self.prefix = prefix
+        self.G = self.function(self.eqs[0].mesh.cells['center'])
+
+    @property
+    def plus(self):
+        return [eq.prefix for eq in self.eqs]
+
+    @property
+    def minus(self):
+        return []
+
+    def evaluate(self, vars):
+        g = self.G * vars['params'][self.prefix + '.I']
+        if vars['full_output'] is not None:
+            vars['full_output'][self.prefix + '.G'] = g
+        return g
+
+
 class SimpleGenerationTerm(BulkSource):
     def __init__(self, eq, function, prefix='absorption'):
-        assert eq.z == 0
         self.function = function
         self.eq = eq
         self.prefix = self.eq.prefix + '.' + prefix
@@ -137,12 +178,14 @@ class OnsagerBraunRecombinationDissociationTerm(BulkSource):
     b_eps = 1e-10
     b_max = 100
 
-    def __init__(self, eq, electron_eq, hole_eq, prefix='dissociation'):
+    def __init__(self, eq, electron_eq, hole_eq,
+                 prefix='dissociation', binding_energy_param=False):
         assert eq.z == electron_eq.z + hole_eq.z, 'inconsistent signs'
         self.eq = eq
         self.electron_eq = electron_eq
         self.hole_eq = hole_eq
         self.prefix = self.eq.prefix + '.' + prefix
+        self.binding_energy_param = binding_energy_param
 
     @property
     def plus(self):
@@ -157,10 +200,16 @@ class OnsagerBraunRecombinationDissociationTerm(BulkSource):
         c = vars['c']
         params = vars['params']
         full_output = vars['full_output']
-        a = params[self.eq.prefix + '.distance']
+        if self.binding_energy_param:
+            Eb = params[self.eq.prefix + '.binding_energy']
+            a = scipy.constants.elementary_charge / \
+                (Eb * 4 * np.pi * vars['epsilon'])
+        else:
+            a = params[self.eq.prefix + '.distance']
+            Eb = scipy.constants.elementary_charge / \
+                (4 * np.pi * vars['epsilon'] * a)
         u = 3. / (4. * np.pi * a**3)  # m^-3
-        v = np.exp(-scipy.constants.elementary_charge /
-                   (4 * np.pi * vars['epsilon'] * a * vars['Vt']))  # 1
+        v = np.exp(-Eb / vars['Vt'])  # 1
         b = (scipy.constants.elementary_charge / (8 * np.pi)) * \
             vars['Ecellm'] / (vars['epsilon'] * vars['Vt']**2)  # 1
         # b=0.
@@ -252,3 +301,42 @@ class SRHRecombination(object):
         return scipy.constants.elementary_charge * \
             mu[self.transport_eq.prefix] * c[self.transport_eq.prefix] * \
             c[self.trap_eq.prefix] / vars['epsilon']
+
+
+class SRH(BulkSource):
+    "SRH (steady-state) term"
+
+    def __init__(self, electron_eq, hole_eq, prefix='srh'):
+        assert electron_eq.mesh is hole_eq.mesh, "the same mesh must be used for conduction and trap level"
+        assert hole_eq.z == 1 and electron_eq.z == -1
+        self.electron_eq = electron_eq
+        self.hole_eq = hole_eq
+        self.prefix = prefix
+
+    @property
+    def minus(self):
+        return [self.electron_eq.prefix, self.hole_eq.prefix]
+
+    @property
+    def plus(self):
+        return []
+
+    def evaluate(self, vars):
+        params, Vt, c = vars['params'], vars['Vt'], vars['c']
+        Et = params[self.prefix + '.level']
+        ni = params[self.electron_eq.prefix + '.N0'] * \
+            exp((params[self.electron_eq.prefix + '.level'] - Et) / Vt)
+        pi = params[self.hole_eq.prefix + '.N0'] * \
+            exp((Et - params[self.hole_eq.prefix + '.level']) / Vt)
+        Cn = params[self.electron_eq.prefix + '.' + self.prefix + '.trate']
+        Cp = params[self.hole_eq.prefix + '.' + self.prefix + '.trate']
+        n = c[self.electron_eq.prefix]
+        p = c[self.hole_eq.prefix]
+        g = Cn * Cp * params[self.prefix + '.N0'] * \
+            (n * p - ni * pi) / (Cn * (n + ni) + Cp * (p + pi))
+        if vars['full_output'] is not None:
+            vars['full_output'][self.prefix + '.' +
+                                self.hole_eq.prefix + '.G'] = g
+            vars['full_output'][self.prefix + '.' +
+                                self.electron_eq.prefix + '.G'] = g
+        return g
