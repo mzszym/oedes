@@ -94,7 +94,7 @@ setup(name='oedes',
       install_requires=[
           'numpy',
           'scipy',
-          'sparsegrad>=0.0.3',
+          'sparsegrad>=0.0.4',
           'tmm>=0.1.7',
           'tqdm>=4.19'],
       author_email='marek@marekszymanski.com',

@@ -52,7 +52,7 @@ def _convert(A, b):
     return A, b
 
 
-def spsolve_scipy(A, b):
+def spsolve_scipy_(A, b):
     A, b = _convert(A, b)
     with warnings.catch_warnings():
         warnings.simplefilter(
@@ -61,6 +61,10 @@ def spsolve_scipy(A, b):
             return scipy.sparse.linalg.spsolve(A, b, use_umfpack=False)
         except BaseException:
             raise SolverError('scipy.sparse.linalg.spsolve failed')
+
+
+def spsolve_scipy(A, b):
+    return spsolve_scipy_(A, b)
 
 
 def _explain(report):

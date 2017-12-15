@@ -31,7 +31,7 @@ class model(object):
 
     def residuals(self, time, x, xt, params, full_output=None, solver=None):
         return ad.sparsesum(len(self.X), self.evaluate(
-            time, x, xt, params, full_output=full_output, solver=solver), unique=True, compress=False)
+            time, x, xt, params, full_output=full_output, solver=solver))
 
     def output(self, time, x, xt, params):
         output = {}

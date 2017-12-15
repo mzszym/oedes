@@ -16,6 +16,5 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-from . import test_ad
 from . import test_diffusion
 from . import test_poisson

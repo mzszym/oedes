@@ -37,7 +37,7 @@ class RestrictedModel(model):
 
     def _x_to_model(self, x, x0):
         return sparsesum(len(self.model.X), [
-                         (self.idx, x), (self.nidx, x0[self.nidx])], unique=True, compress=False)
+                         (self.idx, x), (self.nidx, x0[self.nidx])])
 
     def x_to_model(self, x):
         return self._x_to_model(x, self.x0)

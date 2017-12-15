@@ -284,7 +284,13 @@ class context(object):
         args = {}
         if 'spsolve' in kwargs:
             args['spsolve'] = kwargs['spsolve']
-        phi = solver.solve(r, r.X, params, **args)
+        phi = solver.solve(
+            r,
+            np.asarray(
+                r.X,
+                dtype=xguess.dtype),
+            params,
+            **args)
         return r.x_to_model(phi)
 
     def _solve(self, xguess, params, pseudo_tmax=1e6, pseudo_dt0=1e-9,

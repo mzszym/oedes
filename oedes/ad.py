@@ -18,8 +18,10 @@
 
 import numpy as np
 from sparsegrad import *
-
+from sparsegrad.base import *
+from sparsegrad import forward
 from sparsegrad.forward import nvalue
+from sparsegrad.sparsevec import *
 
 
 def isscalar(x):
@@ -46,22 +48,3 @@ def custom_function(f, df):
     def _(*args):
         return f(*args)
     return f
-
-
-def branch(cond, iftrue, iffalse):
-    if isscalar(cond):
-        if cond:
-            return iftrue(None)
-        else:
-            return iffalse(None)
-    n = len(cond)
-    r = np.arange(len(cond))
-    ixtrue = r[cond]
-    ixfalse = r[np.logical_not(cond)]
-    vtrue = iftrue(ixtrue)
-    vfalse = iffalse(ixfalse)
-    if isscalar(vtrue):
-        vtrue = np.ones_like(ixtrue) * vtrue
-    if isscalar(vfalse):
-        vfalse = np.ones_like(ixfalse) * vfalse
-    return sparsesum_bare(n, [(ixtrue, vtrue), (ixfalse, vfalse)])
