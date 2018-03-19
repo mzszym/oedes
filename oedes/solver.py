@@ -19,12 +19,16 @@
 import numpy as np
 from .ad import *
 from .param import paramvector
-import scipy.sparse.linalg
-import scipy.sparse
+from sparsegrad.impl import scipy
+if hasattr(scipy.sparse, 'linalg'):
+    linalg = scipy.sparse.linalg
+else:
+    from scipy.sparse import linalg
+import numpy as np
 import warnings
 import logging
 from collections import defaultdict
-from .util import TODOWarning
+from . import logs
 
 
 class SolverError(RuntimeError):
@@ -32,8 +36,6 @@ class SolverError(RuntimeError):
     def __init__(self, *args):
         RuntimeError.__init__(self, *args)
 
-
-logger = logging.getLogger('oedes.solver')
 
 # In[41]:
 
@@ -56,11 +58,15 @@ def spsolve_scipy_(A, b):
     A, b = _convert(A, b)
     with warnings.catch_warnings():
         warnings.simplefilter(
-            "error", category=scipy.sparse.linalg.MatrixRankWarning)
+            "error", category=linalg.MatrixRankWarning)
+        logs.linear.info('Solving linear equation using scipy sparse solver')
+        logs.linear.info(
+            'System matrix has shape {shape} with {nnz} nonzero entries of dtype {dtype}'.format(
+                shape=A.shape, nnz=A.nnz, dtype=A.dtype))
         try:
-            return scipy.sparse.linalg.spsolve(A, b, use_umfpack=False)
+            return linalg.spsolve(A, b, use_umfpack=False)
         except BaseException:
-            raise SolverError('scipy.sparse.linalg.spsolve failed')
+            raise SolverError('spsolve failed')
 
 
 def spsolve_scipy(A, b):
@@ -98,7 +104,7 @@ def _matrixsolve(spsolve, A, b, scaling):
 
 
 def solve(model, x0, params, tconst=0., tshift=0., time=0.,
-          maxiter=10, spsolve=spsolve_scipy, solver=None):
+          maxiter=10, spsolve=spsolve_scipy, solver=None, niter=None):
     """This solves system F(x)=0 with x0 as initial guess
 
     Transient solution is possible by assuming xt=x*tshift+tconst.
@@ -114,57 +120,60 @@ def solve(model, x0, params, tconst=0., tshift=0., time=0.,
     convergence_test = model.converged
     update = model.update
 
-    logger = logging.getLogger('oedes.solver.nonlinear')
+    logger = logs.nonlinear
+
+    logs.timestepping.info('Solving %s' % solver)
 
     # _ denotes scaled variables
     x_ = x0 / xscaling
     dx_ = None
     itno = 0
     report = None
+    timing_logger = logs.nonlinear.getChild('timing')
     while True:
         itno = itno + 1
         if not np.alltrue(np.isfinite(x_)):
             raise SolverError('solution diverged')
         if itno > maxiter:
+            nclist = [k for k, v in report.items() if not v['converged']]
             logger.info(
-                'did not converge in %d iterations\n%s' %
-                (maxiter, _explain(report)))
+                'Did not converge in %d iterations: %s' %
+                (maxiter, nclist))
             raise SolverError('did not converge in %d iterations' % maxiter)
+        timer = logs.Timer()
         adx = forward.seed_sparse_gradient(x_) * xscaling
         f_unscaled = F(time, adx, adx * tshift + tconst, params, solver=solver)
         f = f_unscaled * fscaling
-        logger.debug("iteration %d |F|=%e" %
-                     (itno, np.linalg.norm(f_unscaled.value)))
+        logger.info("Nonlinear iteration %d, residual norm |F|=%e (unscaled %e)" %
+                    (itno, np.linalg.norm(f.value), np.linalg.norm(f_unscaled.value)))
         if dx_ is not None:
             report = dict()
             if convergence_test(f_unscaled.value, adx.value,
                                 dx_ * xscaling, params, report=report):
                 break
+        timing_logger.info(
+            'Calculation of Jacobian matrix and F took %s' %
+            timer)
+        timer = logs.Timer()
         dx_ = spsolve(f.gradient.tocsr(), -f.value)
+        timing_logger.info('Linear solve took %s' % timer)
         if not np.alltrue(np.isfinite(dx_)):
             msg = 'linear solver failed (NaN)'
             logger.info(msg)
             raise SolverError(msg)
-        # Update
-        x_ += dx_
+        x_ = x_ + dx_
         x = x_ * xscaling
         update(x, params)
         x_ = x / xscaling
+        if niter is not None and itno >= niter:
+            break
     x = x_ * xscaling
-    logger.info('converged in %d iterations' % itno)
+    #logger.info('converged in %d iterations' % itno)
     return x
 
 
-# In[42]:
-
-class TransientSolver:
-    dt = None
-
-# <api>
-
-
 def bdf1adapt_(model, x, params, t, t1, dt, mindt=1e-15, xt=None, dtrlim=(0.5, 2.), relfail=10., reltol=1e-2, abstol=1e-15, dtrfailsolve=0.1,
-               dtrfaillte=0.1, weight=None, skip=2, use_predictor=False, final_matchstep=True, solve=solve, maxsteps=100, maxdt=np.inf, **kwargs):
+               dtrfaillte=0.1, weight=None, skip=2, use_predictor=False, final_matchstep=True, solve=solve, maxsteps=1000, maxdt=np.inf, solver=None, **kwargs):
     """
     Adaptive transient solver based on BDF1. Solve from time :t0: to at least :t1:, with initial timestep :dt:.
     :xt: is xt at t, can be None.
@@ -186,9 +195,9 @@ def bdf1adapt_(model, x, params, t, t1, dt, mindt=1e-15, xt=None, dtrlim=(0.5, 2
     if weight is None:
         weight = model.transientvar
     failures = 0
-    solver = TransientSolver()
-    step = 0
-    logger = logging.getLogger('oedes.solver.bdf1dapt')
+    step = 1
+    attempt = 1
+    logger = logs.timestepping
     while t < t1:
         # t,x is current solution
         if dt < mindt:
@@ -209,12 +218,15 @@ def bdf1adapt_(model, x, params, t, t1, dt, mindt=1e-15, xt=None, dtrlim=(0.5, 2
         elif xt is not None:
             xnp = x + xt * dt
         # Calculate new solution by backward Euler xt=(xn-x)/dt
+        logger.info(
+            'Timestep %d (attempt %d) at time %e with dt %e' %
+            (step, attempt, t, dt))
+        attempt += 1
         try:
             if use_predictor:
                 initial_guess = xnp
             else:
                 initial_guess = x
-            solver.dt = dt
             xn = solve(model, initial_guess, params, tconst=-x / dt,
                        tshift=1. / dt, time=tn, solver=solver, **kwargs)
             xtn = (xn - x) / dt
@@ -237,6 +249,7 @@ def bdf1adapt_(model, x, params, t, t1, dt, mindt=1e-15, xt=None, dtrlim=(0.5, 2
             dt = np.clip(dt * np.sqrt(e), min(mindt,
                                               dtrlim[0] * dt), min(dtrlim[1] * dt, maxdt))
         t, x, xt = tn, xn, xtn
+        step += 1
 
         def output():
             d = model.output(t, x, xt, params)
@@ -257,11 +270,10 @@ def bdf1adapt(*args, **kwargs):
 
 
 def transientsolve_(model, x0, params, timesteps,
-                    solve=solve, mindt=1e-15, force=False, maxsteps=100, **kwargs):
+                    solve=solve, mindt=1e-15, force=False, maxsteps=100, solver=None, **kwargs):
     "Return sequence of transient solutions (t,dt,x(t),xt,output) for predefined timesteps"
     x = x0
-    solver = TransientSolver()
-    logger = logging.getLogger('oedes.solver.transientsolve')
+    logger = logs.timestepping
     assert len(timesteps) - 1 <= maxsteps, 'not enough steps allowed'
 
     def check_step(step):
@@ -274,7 +286,6 @@ def transientsolve_(model, x0, params, timesteps,
         t0, t1 = timesteps[i:i + 2]
         try:
             logger.info('t=%e dt=%e' % (t0, dt))
-            solver.dt = dt
             xn = solve(model, x, params, tconst=-x / dt,
                        tshift=1. / dt, time=t1, solver=solver, **kwargs)
             x, xt = xn, (xn - x) / dt
@@ -312,19 +323,9 @@ def asarrays(generator, outputs=['J'], monitor=lambda t, x, xt, out: None):
     return dict([(k, np.asarray(data[k])) for k in data])
 
 
-def interpolatearrays(data, t):
-    time = data['time']
-    i = np.searchsorted(time, t, side='left') - 1
-    t0, t1 = time[i:i + 2]
-    a = (t - t0) / (t1 - t0)
-    assert a >= 0. and a <= 1.
-    return dict((k, (data[k][i + 1] - data[k][i]) * a + data[k][i])
-                for k in data.keys())
-
-
 class ACSolver:
     def __init__(self, model, time, x, xt, params,
-                 inparam, outfunc, spsolve=spsolve_scipy):
+                 inparam, outfunc, spsolve=spsolve_scipy, solver=None):
         n = len(x)
         sparams = paramvector([inparam])
         p = sparams.values(params)
@@ -339,7 +340,7 @@ class ACSolver:
             xt,
             p,
             full_output=full_output,
-            solver=self)
+            solver=solver)
         output = outfunc
         J = output(model, time, x, xt, p, full_output)
 
@@ -359,10 +360,3 @@ class ACSolver:
         J = (self.J_x + 1.j * omega * self.J_xt).dot(X) + self.J_p
         assert J.shape == (1, 1)
         return X, J[0, 0]
-
-
-def acsolve(model, time, x, xt, params, inparam, outfunc, omegas, **kwargs):
-    s = ACSolver(model, time, x, xt, params, inparam, outfunc, **kwargs)
-    for w in omegas:
-        _, j = s.solve(w)
-        yield (w, j)

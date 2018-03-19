@@ -31,6 +31,7 @@ class meshpart(object):
 
     def __init__(self, idx=None):
         self.idx = idx
+        self.default_electrode = None
 
     def setUp(self):
         pass
@@ -215,6 +216,7 @@ class mesh1d(mesh):
                 [1. / s], offsets=[0], shape=(len(self.cells), len(self.cells)))
             return (sc.dot(A)).tocsr()
         self.cellavg = _cellsum(self.fluxsum)
+        self.default_electrode = boundary_names[-1]
         self.setUp()
 
     @property

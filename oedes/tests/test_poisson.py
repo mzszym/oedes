@@ -19,8 +19,8 @@
 # This tests if Poisson's equation is solved correctly in most simple cases
 
 from oedes import *
-from oedes.fvm import Poisson, mesh1d
-from oedes.models import BaseModel, AppliedVoltage
+from oedes.fvm import mesh1d
+from oedes.models import BaseModel, Poisson, AppliedVoltage
 L = 100e-9
 v0 = 1.
 v1 = -1.

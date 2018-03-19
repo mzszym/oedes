@@ -21,14 +21,13 @@ from . import functions
 from . import fvm
 from . model import *
 from . solver import *
-del logger
 from . context import *
-from . util import *
 from . param import *
 from . sensitivity import *
 from . import models
 from . import testing
 from . import optical
+from . import logs
 from ._version import *
 from numpy.testing import Tester
 test = Tester().test

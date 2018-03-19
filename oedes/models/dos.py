@@ -16,83 +16,86 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-from .base import *
 from .simple import *
 from .boundary import *
+from oedes.ad import where, nvalue
+import numpy as np
+import logging
 
-
-class species_from_dos(object):
-    # This is currently badly designed and will be refactored later
-
-    def __init__(self, dos_class):
-        self.dos_class = dos_class
-
-    def _make_dos(self, eq, vars):
-        params = vars['params']
-        base = self.dos_class(params[eq.prefix + '.N0'], params['T'])
-        return MO(base, params[eq.prefix + '.level'], eq.z)
-
-    def v_D(self, eq, vars):
-        v, D0 = species_v_D_charged_from_params(eq, vars)
-        dos = self._make_dos(eq, vars)
-        return v, eq.mesh.faceaverage(
-            vars['mu'][eq.prefix] * dos.g(vars['c'][eq.prefix]))
-
-    def bc(self, eq, facefluxes, vars):
-        dos = self._make_dos(eq, vars)
-        return bc_dirichlet(eq, vars['c'][eq.prefix], lambda u: dos.concentration(
-            vars['params']['%s.workfunction' % u]))
+from oedes import logs
 
 
 class DOS(object):
 
-    def Ef(self, eq, vars):
+    def Ef(self, ctx, eq):
         "Return band-referenced Fermi level from concentration"
         raise NotImplementedError()
 
-    def c(self, eq, Ef, vars):
+    def c(self, ctx, eq, Ef):
         "Return concentration from band-referenced Fermi level"
         raise NotImplementedError()
 
-    def D(self, eq, c, Ef, vars):
+    def D(self, ctx, eq, c, Ef):
         "Return diffusion coefficient"
         raise NotImplementedError()
 
-    def QuasiFermiLevel(self, eq, vars):
+    def QuasiFermiLevel(self, ctx, eq):
         assert eq.z in [1, -1]
-        Eband = -vars['potential'] - vars['params'][eq.prefix + '.level']
-        return Eband - eq.z * self.Ef(eq, vars)
+        Eband = -ctx.varsOf(eq.poisson)['potential'] - ctx.param(eq, 'level')
+        return Eband - eq.z * self.Ef(ctx, eq)
 
-    def concentration(self, eq, vars, idx, imref):
+    def concentration(self, ctx, eq, idx, imref):
         assert eq.z in [1, -1]
-        Eband = -vars['potential'][idx] - vars['params'][eq.prefix + '.level']
-        return self.c(eq, -(imref - Eband) / eq.z, vars)
+        Eband = - \
+            ctx.varsOf(eq.poisson)['potential'][idx] - ctx.param(eq, 'level')
+        return self.c(ctx, eq, -(imref - Eband) / eq.z)
 
 
 class BoltzmannDOS(DOS):
     c_eps = 1e-30
     c_limit = True
     Ef_max = None
+    logger = logs.models.getChild('BoltzmannDOS')
 
-    def Ef(self, eq, vars):
-        c = vars['c'][eq.prefix]
+    def Ef(self, ctx, eq):
+        c = ctx.varsOf(eq)['c']
+        c_raw = c
         c = where(c > self.c_eps, c, self.c_eps)  # avoid NaN
-        N0 = vars['params'][eq.prefix + '.N0']
-        # c=where(c<N0,c,N0)
-        return vars['Vt'] * np.log(c / N0)
+        if self.logger.isEnabledFor(logging.INFO):
+            if np.any(nvalue(c_raw) != nvalue(c)):
+                self.logger.info(
+                    'Ef(%r): clipping c<%r, min(c)=%r' %
+                    (eq.prefix, self.c_eps, np.amin(
+                        nvalue(c_raw))))
+        N0 = ctx.param(eq, 'N0')
+        return ctx.varsOf(eq.thermal)['Vt'] * np.log(c / N0)
 
-    def c(self, eq, Ef, vars):
+    def c(self, ctx, eq, Ef):
+        Ef_raw = Ef
         if self.Ef_max is not None:
             Ef = where(Ef < self.Ef_max, Ef, self.Ef_max)
-        N0 = vars['params'][eq.prefix + '.N0']
-        v = Ef / vars['Vt']
+            if self.logger.isEnabledFor(logging.INFO):
+                if np.any(nvalue(Ef) != nvalue(Ef_raw)):
+                    self.logger.info(
+                        'c(%r): clipping Ef>%r, max(Ef)=%r' %
+                        (eq.prefix, self.Ef_max, np.amax(
+                            nvalue(Ef_raw))))
+        N0 = ctx.param(eq, 'N0')
+        v = Ef / ctx.varsOf(eq.thermal)['Vt']
         if self.c_limit:
-            v = where(v < 0., v, 0.)
+            v_raw = v
+            v = where(v <= 0., v, 0.)
+            if self.logger.isEnabledFor(logging.INFO):
+                if np.any(nvalue(v_raw) != nvalue(v)):
+                    self.logger.info(
+                        'c(%r): clipping Ef/kT>0, max(Ef/kT)=%r' %
+                        (eq.prefix, np.amax(
+                            nvalue(v_raw))))
         c = np.exp(v) * N0
         return c
 
-    def D(self, eq, c, Ef, vars):
-        return vars['Vt']
+    def D(self, ctx, eq, c, Ef):
+        return ctx.varsOf(eq.thermal)['Vt']
 
-    def v_D(self, eq, vars):
-        return species_v_D_charged_from_params(eq, vars)
+    def v_D(self, ctx, eq):
+        return species_v_D_charged_from_params(ctx, eq)

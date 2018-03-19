@@ -16,9 +16,6 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-from .cell import *
-from .mesh import *
-from .transport import *
-from .poisson import *
-from .evaluator import *
-from .builder import *
+from .weaklist import *
+from .funcall import *
+from .computation import *

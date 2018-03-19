@@ -17,10 +17,9 @@
 #
 
 from . import solver
-from . import util
 from .model import model
-from .fvm import Poisson
-from .models import RestrictedModel
+from .models import Poisson
+from .models.solver import PoissonOnly
 
 from collections import namedtuple
 import numpy as np
@@ -271,35 +270,19 @@ class context(object):
 
     # Solving
     def _psolve(self, params, xguess, kwargs):
-        eqs = [
-            name for name,
-            eq in self.model.findeqs(
-                lambda eq:isinstance(
-                    eq,
-                    Poisson),
-                return_names=True)]
-        if not eqs:
-            return xguess
-        r = RestrictedModel(self.model, eqs, xguess, 0. * xguess)
-        args = {}
-        if 'spsolve' in kwargs:
-            args['spsolve'] = kwargs['spsolve']
-        phi = solver.solve(
-            r,
-            np.asarray(
-                r.X,
-                dtype=xguess.dtype),
-            params,
-            **args)
-        return r.x_to_model(phi)
+        kwargs = kwargs.copy()
+        kwargs['solver'] = PoissonOnly()
+        return solver.solve(self.model, xguess, params, niter=1, **kwargs)
 
     def _solve(self, xguess, params, pseudo_tmax=1e6, pseudo_dt0=1e-9,
-               pseudo_mindt=1e-15, pseudo_maxsteps=200, use_poisson_guess=True, **kwargs):
+               pseudo_mindt=1e-15, pseudo_maxsteps=200, use_poisson_guess=True, allow_transient=True, **kwargs):
         if use_poisson_guess:
             xguess = self._psolve(params, xguess=xguess, kwargs=kwargs)
         try:
             return solver.solve(self.model, xguess, params, **kwargs)
         except solver.SolverError:
+            if not allow_transient:
+                raise
             for t, dt, x, xt, out in solver.bdf1adapt_(
                     self.model, xguess, params, 0., pseudo_tmax, pseudo_dt0, mindt=pseudo_mindt, maxsteps=pseudo_maxsteps, **kwargs):
                 pass

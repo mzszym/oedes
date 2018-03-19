@@ -15,87 +15,97 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
-
-from .base import *
+from .equations import *
+from .equations.base import Funcall
 from oedes import functions
+from oedes.ad import where, getitem, sum
+from oedes.models import solver
 
 
 class DirichletBC(BoundaryEquation):
+    def evaluate(self, ctx, eq):
+        if ctx.solver.poissonOnly and not isinstance(self.owner_eq, Poisson):
+            return
+        yield eq._getDof(), ctx.varsOf(eq.owner_eq)['x'][eq._getIdx()] - self.value(ctx, eq)
 
-    def __init__(self, name):
-        self.name = name
-
-    def setUp(self, eq):
-        self.bidx = eq.mesh.getBoundary(self.name)['bidx']
-        BoundaryEquation.setUp(self, eq)
-
-    def _residuals(self, eq, v, FdS, b_value):
-        i = eq.mesh.boundary.idx[self.bidx]
-        return v[i] - b_value
+    def value(self, ctx, eq):
+        raise NotImplementedError()
 
 
 class AppliedVoltage(DirichletBC):
+    def __init__(self, *args, **kwargs):
+        calculate_current = kwargs.pop('calculate_current', False)
+        super(AppliedVoltage, self).__init__(*args, **kwargs)
+        self.calculate_current = calculate_current
 
-    def residuals(self, eq, v, FdS, vars):
-        assert isinstance(eq, Poisson)
-        params = vars['params']
-        return self._residuals(eq, v, FdS, params[
-                               '%s.voltage' % self.name] - params['%s.workfunction' % self.name])
+    def build(self, builder):
+        obj = super(AppliedVoltage, self).build(builder)
+        obj.allspecies = Funcall(self.allspecies, obj)
+        obj.allspecies.depends(obj.owner_eq.allspecies)
+        builder.addEvaluation(obj.allspecies)
+        return obj
+
+    def value(self, ctx, eq):
+        if isinstance(ctx.solver, solver.RamoShockleyCalculation):
+            return where(self.name == ctx.solver.boundary_name, 1, 0)
+        return ctx.param(eq, 'voltage') - ctx.param(eq, 'workfunction')
+
+    def allspecies(self, ctx, eq):
+        if not ctx.wants_output or ctx.solver.poissonOnly:
+            return
+        if not self.calculate_current:
+            return
+        bidx = eq.boundary['bidx']
+        J = sum(ctx.varsOf(eq.owner_eq)['Jd_boundary'][bidx])
+        for s in eq.owner_eq.species:
+            J = J + sum(ctx.varsOf(s)['J_boundary'][bidx])
+        ctx.output([eq, 'Jboundary'], J)
 
 
 class Zero(DirichletBC):
-
-    def residuals(self, eq, v, FdS, vars):
-        return self._residuals(eq, v, FdS, 0)
+    def value(self, ctx, eq):
+        return 0
 
 
 class DirichletFromParams(DirichletBC):
-
-    def residuals(self, eq, v, FdS, vars):
-        return self._residuals(eq, v, FdS, vars['params'][
-                               '%s.%s' % (eq.prefix, self.name)])
+    def value(self, ctx, eq):
+        return ctx.param(eq.owner_eq, self.name)
 
 
-class Internal(BoundaryEquation):
-    eq_from = None
-    bidx_from = None
-
-    def setUp(self, eq):
-        BoundaryEquation.setUp(self, eq)
-        self.conservation_to = self.eq_from.idx[
-            self.eq_from.mesh.boundary.idx[self.bidx_from]]
-
-
-class Equal(Internal):
-
+class Internal(DirichletBC):
     def __init__(self, other_eq, name):
+        super(Internal, self).__init__(name)
         self.name = name
         self.eq_from = other_eq
 
-    def setUp(self, eq):
-        if self.eq_from is None:
-            self.eq_from = eq
-        bto, bfrom = eq.mesh.getSharedBoundary(self.eq_from.mesh, self.name)
-        self.bidx = bto['bidx']
-        self.bidx_from = bfrom['bidx']
-        Internal.setUp(self, eq)
+    def build(self, builder):
+        obj = builder.newDirichletBC(
+            builder.get(
+                self.owner_eq),
+            self.name,
+            other_eq_lookup=lambda builder: builder.get(
+                self.eq_from))
+        super(Internal, self)._build_bc(builder, obj)
+        builder.addInitializer(self._init_internal, obj)
+        return obj
 
-    def residuals(self, eq, v, FdS, vars):
-        x = vars['x']
-        return x[eq.idx[eq.mesh.boundary.idx[self.bidx]]] - \
-            x[self.eq_from.idx[self.eq_from.mesh.boundary.idx[self.bidx_from]]]
+    def _init_internal(self, builder, obj):
+        obj.evaluate.depends(builder.get(self.eq_from).load)
 
 
-class FermiLevelEqual(Equal):
+class Equal(Internal):
+    def value(self, ctx, eq):
+        return ctx.varsOf(eq.other_eq)['x'][eq._getOtherIdx()]
 
-    def residuals(self, eq, v, FdS, vars):
-        ixto = eq.mesh.boundary.idx[self.bidx]
-        ixfrom = self.eq_from.mesh.boundary.idx[self.bidx_from]
-        Effrom = vars['eqvars'][id(self.eq_from)]['Ef'][
-            self.eq_from.prefix][ixfrom]
-        cto = vars['eqvars'][id(eq)]['model'].species_dos[
-            self.eq_from.prefix].concentration(eq, vars, ixto, Effrom)
-        return vars['x'][eq.idx[ixto]] - cto
+
+class FermiLevelEqual(Internal):
+    def value(self, ctx, eq):
+        if ctx.solver.poissonOnly:
+            assert not isinstance(eq, Poisson)
+            return
+        Effrom = ctx.varsOf(eq.other_eq)['Ef'][eq._getOtherIdx()]
+        return self.owner_eq.dos.concentration(
+            ctx, eq.owner_eq, eq._getIdx(), Effrom)
 
 
 class FermiLevelEqualElectrode(DirichletBC):
@@ -105,21 +115,20 @@ class FermiLevelEqualElectrode(DirichletBC):
         super(FermiLevelEqualElectrode, self).__init__(name, **kwargs)
         self.image_force = image_force
 
-    def image_correction(self, eq, vars, ixto):
+    def image_correction(self, ctx, eq, ixto):
         if not self.image_force:
             return 0.
         n = eq.mesh.boundaries[self.name]['normal']
-        F = eq.z * eq.mesh.dotv(vars['Ecellv'][ixto], n)
+        F = eq.z * eq.mesh.dotv(ctx.varsOf(eq.poisson)['Ecellv'][ixto], n)
         F = where(F > self.F_eps, F, self.F_eps)
         return -eq.z * \
             functions.EmtageODwyerBarrierLowering(
-                F, getitem(vars['epsilon'], ixto))
+                F, getitem(ctx.varsOf(eq.poisson)['epsilon'], ixto))
 
-    def residuals(self, eq, v, FdS, vars):
-        dos = vars['model'].species_dos[eq.prefix]
-        ixto = eq.mesh.boundary.idx[self.bidx]
-        params = vars['params']
-        Ef_electrode = -params['%s.voltage' %
-                               self.name] + self.image_correction(eq, vars, ixto)
-        c_electrode = dos.concentration(eq, vars, ixto, Ef_electrode)
-        return vars['x'][eq.idx[ixto]] - c_electrode
+    def value(self, ctx, eq):
+        dos = self.owner_eq.dos
+        ixto = eq._getIdx()
+        Ef_electrode = -ctx.param(eq, 'voltage') + \
+            self.image_correction(ctx, eq.owner_eq, ixto)
+        c_electrode = dos.concentration(ctx, eq.owner_eq, ixto, Ef_electrode)
+        return c_electrode

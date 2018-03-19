@@ -16,14 +16,23 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-import sys
+class SolverObject(object):
+    def __init__(self):
+        pass
 
-_prevlen = 0
+    @property
+    def poissonOnly(self):
+        return False
 
 
-class TODOWarning(UserWarning):
-    pass
+class PoissonOnly(SolverObject):
+    @property
+    def poissonOnly(self):
+        return True
 
 
-import warnings
-warnings.simplefilter('ignore', TODOWarning)
+class RamoShockleyCalculation(PoissonOnly):
+    def __init__(self, boundary_name, store):
+        super(RamoShockleyCalculation, self).__init__()
+        self.boundary_name = boundary_name
+        self.store = store

@@ -16,9 +16,23 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-from .cell import *
-from .mesh import *
-from .transport import *
-from .poisson import *
-from .evaluator import *
-from .builder import *
+import oedes
+
+
+def test_no_garbage():
+    import gc
+    gc.collect()
+    gc.disable()
+    gc.set_debug(gc.DEBUG_SAVEALL)
+
+    def run():
+        model, params = oedes.testing.unipolar(100e-9)
+        model.setUp()
+        c = oedes.context(model)
+        c.solve(params)
+        c.output()
+    run()
+    gc.collect()
+    assert not gc.garbage
+    gc.set_debug(0)
+    gc.enable()

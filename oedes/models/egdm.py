@@ -65,54 +65,53 @@ class GaussianDOS(DOS):
             impl = _gdos.defaultImpl
         self.impl = impl
 
-    def _load(self, eq, vars):
-        params = vars['params']
-        sigma = params[eq.prefix + '.sigma']
-        Vt = vars['Vt']
+    def _load(self, ctx, eq):
+        sigma = ctx.param(eq, 'sigma')
+        Vt = ctx.varsOf(eq.thermal)['Vt']
         nsigma = _egdm.nsigma(sigma, Vt)
         nsigma = where(nsigma > self.nsigma_min, nsigma, self.nsigma_min)
         nsigma = where(nsigma < self.nsigma_max, nsigma, self.nsigma_max)
         if np.any(_egdm.nsigma(sigma, Vt) != nsigma):
             warnings.warn(
                 'nsigma clipped to ensure numerical stability: probably not calculating what you want. This is OK in initial Newton iterations, but not in the final one')
-        N0 = params[eq.prefix + '.N0']
-        c = vars['c'][eq.prefix] / N0
+        N0 = ctx.param(eq, 'N0')
+        c = ctx.varsOf(eq)['c'] / N0
         assert self.c_eps >= self.impl.I_min
         assert self.c_max <= self.impl.I_max
         c = where(c > self.c_eps, c, self.c_eps)
         c = where(c < self.c_max, c, self.c_max)
-        if 'b' not in vars['dos_data'][eq.prefix]:
-            vars['dos_data'][eq.prefix]['b'] = self.impl.b(
-                np.sqrt(2.) * nsigma, c)
+        if 'dos_data' not in ctx.varsOf(eq):
+            ctx.varsOf(eq)['dos_data'] = dict(b=self.impl.b(
+                np.sqrt(2.) * nsigma, c))
         return sigma, nsigma, N0, Vt, c
 
-    def Ef(self, eq, vars):
-        _, nsigma, N0, Vt, c = self._load(eq, vars)
-        return -vars['dos_data'][eq.prefix]['b'] * Vt
+    def Ef(self, ctx, eq):
+        _, nsigma, N0, Vt, c = self._load(ctx, eq)
+        return -ctx.varsOf(eq)['dos_data']['b'] * Vt
 
-    def c(self, eq, Ef, vars):
-        _, nsigma, N0, Vt, c = self._load(eq, vars)
+    def c(self, ctx, eq, Ef):
+        _, nsigma, N0, Vt, c = self._load(ctx, eq)
         return N0 * self.impl.I(np.sqrt(2.) * nsigma, b=-Ef / Vt)
 
-    def D(self, eq, c, Ef, vars):
+    def D(self, ctx, eq, c, Ef):
         raise NotImplementedError()
 
-    def v_D(self, eq, vars):
-        sigma, nsigma, N0, Vt, c = self._load(eq, vars)
-        params = vars['params']
+    def v_D(self, ctx, eq):
+        sigma, nsigma, N0, Vt, c = self._load(ctx, eq)
         a = _egdm.N0toa(N0)
-        mu_cell = _egdm.mu0t(nsigma, params[eq.prefix + '.mu0'])
+        mu_cell = _egdm.mu0t(nsigma, ctx.param(eq, 'mu0'))
         if self.use_g1:
             mu_cell = mu_cell * \
                 _egdm.g1(nsigma, where(c < self.g1_max_c, c, self.g1_max_c))
         mu_face = eq.mesh.faceaverage(mu_cell)
+        E = ctx.varsOf(eq.poisson)['E']
         if self.use_g2:
-            En = (vars['E'] * a) / sigma
+            En = (E * a) / sigma
             En2 = En**2
             En2_max = self.g2_max_En**2
             mu_face = mu_face * \
                 _egdm.g2_En2(nsigma, where(En2 < En2_max, En2, En2_max))
-        v = eq.v(mu_face, vars['E'])
+        v = eq.v(mu_face, E)
         D_face = mu_face * Vt
         if self.use_g3:
             assert self.g3_max_c <= self.gdosImpl.I_max
@@ -120,7 +119,7 @@ class GaussianDOS(DOS):
             assert self.nsigma_max * np.sqrt(2.) <= self.gdosImpl.a_max
             inlimit_g3 = c < self.g3_max_c
             b_g3 = branch(inlimit_g3,
-                          lambda ix: getitem(vars['dos_data'][eq.prefix]['b'],
+                          lambda ix: getitem(ctx.varsOf(eq)['dos_data']['b'],
                                              ix),
                           lambda ix: self.impl.b(np.sqrt(2.) * getitem(nsigma,
                                                                        ix),
@@ -133,4 +132,4 @@ class GaussianDOS(DOS):
                         c_g3,
                         impl=self.impl,
                         b=b_g3))
-        return eq.v(mu_face, vars['E']), D_face
+        return eq.v(mu_face, E), D_face

@@ -36,8 +36,7 @@ class sensitivity_analysis(object):
     def goal(self, solution, time, x, xt, params, full_output):
         return full_output[self.function]
 
-    def add_hook(self, context):
-        solution = context.solution
+    def process(self, solution):
         n = len(solution.x)
         nparams = self.sparams.values(solution.params)
 
@@ -81,6 +80,9 @@ class sensitivity_analysis(object):
         d = dG_dx.dot(dx_dp) + dG_dxold.dot(dxold) + dG_dp
         self.g[id(solution)] = G.value
         self.dg[id(solution)] = d
+
+    def add_hook(self, context):
+        return self.process(context.solution)
 
 
 def add_sensitivity(context, *args, **kwargs):

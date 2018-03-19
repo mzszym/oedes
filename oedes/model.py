@@ -33,9 +33,10 @@ class model(object):
         return ad.sparsesum(len(self.X), self.evaluate(
             time, x, xt, params, full_output=full_output, solver=solver))
 
-    def output(self, time, x, xt, params):
+    def output(self, time, x, xt, params, solver=None):
         output = {}
-        for _ in self.evaluate(time, x, xt, params, full_output=output):
+        for _ in self.evaluate(time, x, xt, params,
+                               full_output=output, solver=solver):
             pass
         return output
 

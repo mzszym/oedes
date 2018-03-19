@@ -38,106 +38,83 @@
 
 from oedes import ad
 import numpy as np
+from .discrete import *
 
 
-class ConvergenceTest(object):
-    pass
+def _boundaryIdx(eq, boundary):
+    return eq.mesh.boundary.idx[boundary['bidx']]
 
 
-class NormConvergenceTest(ConvergenceTest):
-
-    def __init__(self, stol=1e-6, atol=0.):
-        self.stol = stol
-        self.atol = atol
-
-    def testEquation(self, eq, F, x, dx, params):
-        F = F[eq.idx]
-        x = x[eq.idx]
-        dx = dx[eq.idx]
-        if np.linalg.norm(dx) < self.stol * np.linalg.norm(x):
-            return True
-        if np.linalg.norm(F) < self.atol * np.sqrt(len(F)):
-            return True
-        return False
-
-    def testBoundary(self, eq, bc, F, x, dx, params):
-        raise NotImplementedError()
+def _boundaryDof(eq, boundary):
+    return eq.idx[_boundaryIdx(eq, boundary)]
 
 
-class ElementwiseConvergenceTest(ConvergenceTest):
+class FVMBoundaryEquation(DiscreteEquation):
+    """
+    Cell-center finite volume boundary equation
 
-    def __init__(self, rtol=1e-6, atol=0., drtol=1e-6, datol=0.):
-        self.rtol = rtol
-        self.atol = atol
+    Members:
+    ---------------------------
+    owner_eq : FVMConservationEquation
+        Equation this boundary condition applies to
+    other_eq_lookup : callable(FVMBuilder) -> FVMConservationEquation
+        For internal interfaces: find equation on the other side of interface
+    name : str
+        Name of this interface
+    other_eq : FVMConservationEquation
+        For internal interface, after setUp : equation on the other side of the interface
+    boundary :
+        result of mesh.getBoundary or mesh.getSharedBoundary
+    other_boundary :
+        For internal interfaces: result of mesh.getSharedBoundary, applies to the other side of the interface
+    conservation_to_dof : integer array
+        For internal interfaces: destination cell for conservation
+    """
 
-    def _testix(self, eq, ix, F, x, dx, report, prefix):
-        i = eq.idx[ix]
-        if len(i) == 0:
-            return True
-        F = F[i]
-        x = x[i]
-        dx = dx[i]
-        converged_abs = np.abs(F) < self.atol
-        converged_rel = np.abs(dx) < self.rtol * np.abs(x)
-        converged = np.logical_or(converged_abs, converged_rel).all()
+    def __init__(self, owner_eq, name, other_eq_lookup=None):
+        super(FVMBoundaryEquation, self).__init__()
+        self.owner_eq = owner_eq
+        self.other_eq_lookup = other_eq_lookup
+        self.name = name
 
-        def amax(v):
-            if len(v) == 0:
-                return 0.
-            else:
-                return np.amax(v)
-        with np.errstate(divide='ignore', invalid='ignore'):
-            report[prefix] = dict(converged=converged,
-                                  atol=self.atol,
-                                  rtol=self.rtol,
-                                  maxabs=amax(np.abs(F)),
-                                  maxabs_nc=amax(
-                                      np.abs(F[np.logical_not(converged_rel)])),
-                                  maxrel=amax(np.abs(dx / x)),
-                                  maxrel_nc=amax(np.abs((dx / x)[np.logical_not(converged_abs)])))
-        return converged
+    def _getDof(self):
+        return _boundaryDof(self.owner_eq, self.boundary)
 
-    def testEquation(self, eq, F, x, dx, params, report):
-        ix_all = np.hstack(
-            [eq.mesh.internal.idx, eq.mesh.boundary.idx[eq.bc_free_dof]])
-        return self._testix(eq, ix_all, F, x, dx, report, eq.prefix)
+    def _getIdx(self):
+        return _boundaryIdx(self.owner_eq, self.boundary)
 
-    def testBoundary(self, eq, bc, F, x, dx, params, report):
-        return self._testix(eq, eq.mesh.boundary.idx[
-                            bc.bidx], F, x, dx, report, eq.prefix + '.' + bc.name)
+    def _getOtherIdx(self):
+        return _boundaryIdx(self.other_eq, self.other_boundary)
 
+    def init(self, builder):
+        if self.other_eq_lookup is None:
+            self.other_eq = None
+            self.boundary = self.owner_eq.mesh.getBoundary(self.name)
+            self.other_boundary = None
+            self.conservation_to_dof = _boundaryDof(
+                self.owner_eq, self.boundary)
+        else:
+            self.other_eq = self.other_eq_lookup(builder)
+            self.boundary, self.other_boundary = self.owner_eq.mesh.getSharedBoundary(
+                self.other_eq.mesh, self.name)
+            self.conservation_to_dof = _boundaryDof(
+                self.other_eq, self.other_boundary)
+        assert self.owner_eq.bc_dof_is_free[self.boundary['bidx']].all(
+        ), 'not overriding BCs'
+        self.owner_eq.bc_dof_is_free[self.boundary['bidx']] = False
 
-class BoundaryEquation(object):
-    idx = None
-    mesh = None
-    bidx = None
-    conservation_to = None
+    def ndof(self):
+        return 0
 
-    convergenceTest = None
-
-    def setUp(self, eq):
-        assert self.idx is None and self.mesh is None, 'object already setUp'
-        self.idx = eq.idx
-        self.mesh = eq.mesh
-        self.conservation_to = self.idx[
-            self.mesh.boundary.idx[self.bidx]].copy()
-
-    def conservation(self, eq, FdS, celltransient=0., cellsource=0.):
-        if not ad.isscalar(celltransient):
-            celltransient = celltransient[self.bidx]
-        if not ad.isscalar(cellsource):
-            cellsource = cellsource[self.bidx]
-        volume = eq.boundary.cells['volume'][self.bidx]
-        return -FdS + volume * (celltransient - cellsource)
+    def testConvergedNew(self, F, x, dx, report):
+        return self.convergenceTest.testBoundaryNew(
+            self.owner_eq, self, F, x, dx, report)
 
 
-class CellEquation(object):
-    convergenceTest = None
-    idx = None
-    bc = None
-    bc_free_dof = None
-    bc_conservation_labels = None
+BoundaryEquation = FVMBoundaryEquation
 
+
+class FVMConservationEquation(DiscreteEquation):
     """
     Basic equation defining one degree of freedom per cell, solved using vertex centered finite volume
 
@@ -152,22 +129,24 @@ class CellEquation(object):
         convergence criteria for this equation
     prefix : str
         prefix of this equation used for parameters and output
+    boundary_labels : integer array
+        For internal interfaces: labels of merged interfacial cells
     """
 
-    def __init__(self, mesh, name, boundary=None):
+    def __init__(self, mesh, name):
         """Abstract block of equation, which introduces a field into equation system on :mesh:
         Keeps track of:
         indices of belonging to the field :idx:, x[idx[i]] is field in cell i
         :name:, which currently is the same as prefix
         :boundary: cells
         """
+        super(FVMConservationEquation, self).__init__()
         self.mesh = mesh
         self.name = name
         self.bc = []
 
-    @property
-    def prefix(self):
-        return self.name
+        self.bc_dof_is_free = np.ones_like(mesh.boundary.idx, dtype=np.bool)
+        self.boundary_labels = None
 
     def residuals(self, part, facefluxes, celltransient=0., cellsource=0.):
         """
@@ -204,11 +183,8 @@ class CellEquation(object):
         return self.idx[idx], -FdS / \
             part.cells['volume'] + celltransient - cellsource
 
-    @property
-    def transientvar(self):
-        return 1.
+    def ndof(self):
+        return self.mesh.ncells
 
-    def testConverged(self, F, x, dx, params, report):
-        tests = [self.convergenceTest.testEquation(self, F, x, dx, params, report)] + [
-            bc.convergenceTest.testBoundary(self, bc, F, x, dx, params, report) for bc in self.bc]
-        return all(tests)
+    def identity(self, x):
+        return self.idx, x - ad.nvalue(x)

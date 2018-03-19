@@ -25,8 +25,8 @@ from oedes.testing import store
 make_plots = False
 
 from oedes import solve, bdf1adapt, models, transientsolve
-from oedes.fvm import mesh1d, Poisson, TransportCharged
-from oedes.models import AppliedVoltage
+from oedes.fvm import mesh1d
+from oedes.models import AppliedVoltage, Poisson, TransportCharged
 from oedes import context
 from oedes import testing
 import numpy as np
@@ -52,7 +52,7 @@ def run_diffusion(L, times, bc_equation=None,
     b.poisson.bc = [AppliedVoltage(boundary) for boundary in mesh.boundaries]
     # All species are uncharged
 
-    def v_D(eq, vars):
+    def v_D(ctx, eq):
         return 0., kwargs[eq.prefix][0]
     s = dict()
     for k in sorted(kwargs.keys()):

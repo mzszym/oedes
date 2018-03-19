@@ -24,6 +24,7 @@ from oedes.fvm import mesh1d
 import numpy as np
 import itertools
 from matplotlib.collections import LineCollection
+from oedes.models.utils import meta_key
 
 __all__ = ['matplotlib', 'plt', 'forcontext', 'subplots', 'Settings']
 
@@ -172,14 +173,7 @@ class context_plotting:
         for k in sorted(self.out.keys()):
             match = r.match(k)
             if match:
-                model = self.model
-                path = k.split('.')
-                while path:
-                    sub = dict([(s.name, s) for s in model.sub])
-                    if path[0] not in sub:
-                        break
-                    model = sub[path.pop(0)]
-                ent = (model.poisson.mesh, self.out[k])
+                ent = (self.out[meta_key][k].mesh, self.out[k])
                 if not with_label:
                     yield k, [ent]
                 else:

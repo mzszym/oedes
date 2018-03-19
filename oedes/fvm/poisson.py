@@ -20,14 +20,15 @@
 #
 # $\nabla \cdot (\epsilon \nabla \varphi) = \rho$
 
-from .cell import CellEquation
+from .cell import FVMConservationEquation
 
 
-class Poisson(CellEquation):
+class FVMPoissonEquation(FVMConservationEquation):
     "Poisson equation"
 
-    def __init__(self, mesh, name='poisson', **kwargs):
-        CellEquation.__init__(self, mesh, name=name, **kwargs)
+    def __init__(self, mesh, name='poisson'):
+        super(FVMPoissonEquation, self).__init__(mesh, name=name)
+        self.transientvar = 0.
 
     def E(self, phi):
         "Return magnitude of electric field at faces"
@@ -36,8 +37,8 @@ class Poisson(CellEquation):
     def displacement(self, E, epsilon):
         return E * epsilon
 
-    faceflux = displacement
+    def scaling(self, xscaling, fscaling):
+        lunit = 1e-9
+        fscaling[self.idx] = lunit
 
-    @property
-    def transientvar(self):
-        return 0.
+    faceflux = displacement

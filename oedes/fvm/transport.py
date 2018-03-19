@@ -36,12 +36,14 @@
 #
 # $J_p=q \mu_h (p E - V_t \nabla p)$
 
-from .cell import CellEquation
+from .cell import FVMConservationEquation
 from oedes.functions import ScharfetterGummelFlux
 import scipy.constants
+import numpy as np
+from oedes import logs
 
 
-class Transport(CellEquation):
+class FVMTransportEquation(FVMConservationEquation):
     "Advection-diffusion equation discretized with Scharfetter-Gummel scheme"
 
     def faceflux(self, c, v, D, full_output=False):
@@ -83,12 +85,27 @@ class Transport(CellEquation):
         return dict(flux=flux, cmid=cmid, cgrad=cgrad,
                     flux_v=cmid * v, flux_D=-D * cgrad)
 
+    def update(self, x, *args):
+        # Do not allow negative values
+        xe = np.take(x, self.idx)
+        xnew = np.where(xe < 0., 0., xe)
+        if np.any(xe != xnew):
+            pass
+            #logs.fvm.info('update(%r): clipping concentration c<0, min(c)=%r'%(self, np.amin(xe)))
+        x[self.idx] = xnew
 
-class TransportCharged(Transport):
+    def scaling(self, xscaling, fscaling):
+        lunit = 1e-9
+        tunit = 1e-12
+        xscaling[self.idx] = lunit**-3
+        fscaling[self.idx] = lunit * tunit
+
+
+class FVMTransportChargedEquation(FVMTransportEquation):
     "Advection-diffusion equation for charged species"
 
-    def __init__(self, mesh, name, z, **kwargs):
-        Transport.__init__(self, mesh, name, **kwargs)
+    def __init__(self, mesh, name, z):
+        super(FVMTransportChargedEquation, self).__init__(mesh, name)
         self.z = z
         self.ze = z * scipy.constants.elementary_charge
 

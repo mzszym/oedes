@@ -16,7 +16,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-from . import base
+from .base_model import BaseModel
 import scipy.constants
 from oedes import bdf1adapt as _bdf1adapt
 from oedes import solve as _solve
@@ -28,7 +28,7 @@ import sys
 
 def LEC(mesh, zc=1, za=-1, **kwargs):
     "Return ready-to-evaluate LEC model"
-    model = base.BaseModel()
+    model = BaseModel()
     std.electronic_device(model, mesh, 'pn', **kwargs)
     std.add_ions(model, mesh, zc=zc, za=za)
     model.setUp()
@@ -96,28 +96,6 @@ def bdf1adapt(model, x, params, t, t1, dt,
     solve_and_check = checker(model, x, rtol=ion_rtol, atol=ion_atol)
     return _bdf1adapt(model, x, params, t, t1, dt,
                       solve=solve_and_check.solve, **kwargs)
-
-
-class monitor_species:
-    "Simple monitor, which plots species in Jupyter"
-
-    def __init__(self, model, plt, ylim_species=[1e10, 1e30]):
-        self.model = model
-        self.plt = plt
-        self.ylim_species = ylim_species
-
-    def __call__(self, t, x, xt, out):
-        plt = self.plt
-        for eq in self.model.species:
-            plt.plot(eq.mesh.cells['center'] * 1e9,
-                     out[eq.prefix + '.c'], label=eq.prefix)
-        plt.yscale('log')
-        plt.xlabel('Position [nm]')
-        plt.ylabel('Concentration [$m^-3$]')
-        plt.legend(loc=0)
-        plt.title(str(t))
-        plt.ylim(self.ylim_species)
-        plt.show()
 
 
 def monitor_time(t, x, xt, out):

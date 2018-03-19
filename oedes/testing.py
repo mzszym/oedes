@@ -66,7 +66,10 @@ def nb_store_array(x, atol=0., rtol=1e-7, label=None):
         x = np.asarray(x, dtype=np.double)
     elif x.dtype == np.longcomplex:
         x = np.asarray(x, dtype=np.complex)
-    from IPython.display import publish_display_data
+    try:
+        from IPython.display import publish_display_data
+    except BaseException:
+        return
     d = array2dict(x)
     u = dict2array(d)
     assert (x == u).all()

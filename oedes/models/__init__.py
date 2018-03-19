@@ -17,8 +17,7 @@
 #
 
 from .compose import *
-from .restrict import *
-from .base import *
+from .base_model import *
 from .boundary import *
 from .source import *
 from .dos import *
