@@ -1,7 +1,7 @@
 # -*- coding: utf-8; -*-
 #
 # oedes - organic electronic device simulator
-# Copyright (C) 2017 Marek Zdzislaw Szymanski (marek@marekszymanski.com)
+# Copyright (C) 2017-2018 Marek Zdzislaw Szymanski (marek@marekszymanski.com)
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU Affero General Public License, version 3,
@@ -106,8 +106,8 @@ class FVMBoundaryEquation(DiscreteEquation):
     def ndof(self):
         return 0
 
-    def testConvergedNew(self, F, x, dx, report):
-        return self.convergenceTest.testBoundaryNew(
+    def testConverged(self, F, x, dx, report):
+        return self.convergenceTest.testBoundary(
             self.owner_eq, self, F, x, dx, report)
 
 

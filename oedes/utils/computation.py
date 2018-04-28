@@ -1,7 +1,7 @@
 # -*- coding: utf-8; -*-
 #
 # oedes - organic electronic device simulator
-# Copyright (C) 2017 Marek Zdzislaw Szymanski (marek@marekszymanski.com)
+# Copyright (C) 2017-2018 Marek Zdzislaw Szymanski (marek@marekszymanski.com)
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU Affero General Public License, version 3,
@@ -22,30 +22,28 @@ __all__ = ['ArgStack', 'Computation', 'With', 'Coupled', 'as_computation']
 
 
 class ArgStack(object):
-    stack_keys = ['prefix']
+    stack_keys = [('prefix', 'name')]
 
     def __init__(self, **kwargs):
-        for k in self.stack_keys:
-            if k not in kwargs:
-                kwargs[k] = None
+        for field, _ in self.stack_keys:
+            if field not in kwargs:
+                kwargs[field] = []
         self.kwargs = kwargs
+        self._prefix = '.'.join(p for p in self.kwargs['prefix'])
 
     def push(self, **kwargs):
-        for k in self.stack_keys:
-            if k in kwargs:
-                v = kwargs[k]
-                if v is None:
-                    kwargs[k] = self.kwargs[k]
-                    continue
-                if not v:
-                    raise ValueError('empty prefix not allowed')
-                # if '.' in v:
-                #    raise ValueError('dot . not allowed in prefix name')
-                if self.kwargs[k]:
-                    kwargs[k] = '.'.join([self.kwargs[k], v])
-                else:
-                    kwargs[k] = v
-        return ArgStack(**kwargs)
+        for field, _ in self.stack_keys:
+            assert field not in kwargs
+        args = dict(self.kwargs)
+        args.update(kwargs)
+        for field, key in self.stack_keys:
+            if key in kwargs and kwargs[key] is not None:
+                args[field] = self.kwargs[field] + [kwargs[key]]
+        return ArgStack(**args)
+
+    @property
+    def prefix(self):
+        return self._prefix
 
     def __getattr__(self, name):
         return self.kwargs[name]
@@ -79,7 +77,7 @@ def as_computation(obj):
 
 
 class With(Computation):
-    "Assings arguments (prefix, domain) to calculations"
+    "Assings arguments (name etc.) to calculations"
 
     def __init__(self, eq, **kwargs):
         self.eq = as_computation(eq)
@@ -102,5 +100,4 @@ class Coupled(Computation):
 
     def discretize(self, builder):
         for args, eq in self.all_equations(ArgStack()):
-            obj = eq.build(builder)
-            obj.new_prefix = args.prefix
+            eq.build(builder, args)

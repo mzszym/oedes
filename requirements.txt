@@ -5,10 +5,12 @@ jupyter
 notebook
 matplotlib
 pandas
-jupyter_contrib_nbextensions
 tmm
 numpy
 scipy
 packaging
 sparsegrad
 tqdm
+sphinxcontrib-bibtex
+sphinx-automodapi
+ipywidgets

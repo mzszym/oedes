@@ -1,7 +1,7 @@
 # -*- coding: utf-8; -*-
 #
 # oedes - organic electronic device simulator
-# Copyright (C) 2017 Marek Zdzislaw Szymanski (marek@marekszymanski.com)
+# Copyright (C) 2017-2018 Marek Zdzislaw Szymanski (marek@marekszymanski.com)
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU Affero General Public License, version 3,
@@ -30,15 +30,15 @@ class OnsagerBraunRecombinationDissociationTerm(BulkSource):
     b_max = 100
 
     def __init__(self, eq, electron_eq, hole_eq,
-                 prefix='dissociation', binding_energy_param=False):
+                 name='dissociation', binding_energy_param=False):
         super(
             OnsagerBraunRecombinationDissociationTerm,
             self).__init__(
-            name=prefix,
-            eq_refs=[
-                'eq',
-                'electron_eq',
-                'hole_eq'])
+                name=name,
+                eq_refs=[
+                    'eq',
+                    'electron_eq',
+                    'hole_eq'])
         assert eq.z == electron_eq.z + hole_eq.z, 'inconsistent signs'
         self.eq = eq
         self.electron_eq = electron_eq
@@ -77,14 +77,14 @@ class OnsagerBraunRecombinationDissociationTerm(BulkSource):
                 self.b_max) +
             self.b_eps)  # 1
         gamma = scipy.constants.elementary_charge * \
-            (nvars['mu'] + pvars['mu']) / \
+            (nvars['mu_cell'] + pvars['mu_cell']) / \
             epsilon  # m^3 /s
         r = gamma * (nvars['c'] * pvars['c'] - ctx.common_param(
             [eq.electron_eq, eq.hole_eq], 'npi'))  # 1/(m^3 s) # TODO
         d = gamma * evars['c'] * u * v * t
-        ctx.outputCell([eq.eq, self.prefix, 'recombination'],
+        ctx.outputCell([eq.eq, self.name, 'recombination'],
                        r, unit=ctx.units.dconcentration_dt)
-        ctx.output([eq.eq, self.prefix, 'dissociation'],
+        ctx.output([eq.eq, self.name, 'dissociation'],
                    d, unit=ctx.units.dconcentration_dt)
         f = r - d
         self.add(ctx, f, plus=[eq.eq], minus=[eq.hole_eq, eq.electron_eq])

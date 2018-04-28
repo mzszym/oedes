@@ -1,28 +1,16 @@
 Introduction
 ============
 
-`oedes` simulates electrical processes in thin film electronic devices using the drift-diffusion model and optical properties using the transfer matrix approach.
+``oedes`` (Open Electronic DEvice Simulator) is a Python software package for modeling of novel electronic devices based on new materials. It is applicable to organic electronic, electrochemical, bioelectronic, and Peroskvite based devices.
 
-The electrical model is defined as follows:
+`oedes` was written to take into account both the special aspects of non-conventional electronic devices, and the modern trends in software development. The result a small but powerful package, which is tightly integrated with standard scientific software stack. This simplifies both running and sharing the simulations.
 
-.. math::
-   E=-\frac{\partial \phi}{\partial x}
+`oedes` development goals are to:
 
-   \frac{\partial}{\partial x}\left(\epsilon E\right)=q\sum z_{i}c_{i}
+- enable `open science` research in novel electronic devices, by enabling full disclosure of numerical simulations;
+- allow reuse of established device models, which were published without implementation;
+- accelerate research by providing a platform for parameter extraction from measurements and for simulation based device optimization;
+- simplify development of new simulation models and tools, by providing a library of basic components;
+- provide a standard way of running and sharing device simulations.
 
-   j_{i}=\mu_{i}\left(c_{i}z_{i}E-\frac{D_{i}}{\mu_{i}}\frac{\partial c_{i}}{\partial x}\right)
-
-   \frac{\partial c_i}{\partial  t} + \frac{\partial j_i}{\partial x} = s_i
-
-where index :math:`i` refers to species index, :math:`z` is species charge in units of elementary charge, :math:`c` is species concentration and :math:`\mu` is mobility. :math:`s` denotes source term, which may contain subterms due to generation, recombination and trapping processes.
-
-In bipolar devices, source term :math:`s` contains contribution of Langevin recombination, which is given by formula
-
-.. math::
-
-   R = \frac{e}{\epsilon} \left( c_n c_p - c_n^0 c_p^0 \right) \left( \mu_n + \mu_p \right)
-
-   s_n = -R + ...
-   
-   s_p = -R + ...
-
+`oedes` is released as open-source under GNU Affero General Public License v3. It is free to use and distributed with complete source code. 

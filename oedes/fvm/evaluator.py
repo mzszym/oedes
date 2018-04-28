@@ -1,7 +1,7 @@
 # -*- coding: utf-8; -*-
 #
 # oedes - organic electronic device simulator
-# Copyright (C) 2017 Marek Zdzislaw Szymanski (marek@marekszymanski.com)
+# Copyright (C) 2017-2018 Marek Zdzislaw Szymanski (marek@marekszymanski.com)
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU Affero General Public License, version 3,
@@ -20,6 +20,7 @@ import numpy as np
 from .cell import FVMBoundaryEquation, FVMConservationEquation
 import scipy.sparse.csgraph
 from oedes.ad import sparsesum
+from oedes.model import model
 
 
 class FVMEvalContext(object):
@@ -32,7 +33,15 @@ class FVMEvalContext(object):
         return self.evaluator.finalize(self.target, self.bc_conservation)
 
 
-class FVMEvaluator(object):
+class KillVars(object):
+    def __init__(self, obj):
+        self.obj = obj
+
+    def __call__(self, ctx):
+        ctx.killVars(self.obj)
+
+
+class FVMEvaluator(model):
     def __init__(self, builder, context_type):
         self.equations = builder.equations
         self.ndof = builder.ndof
@@ -46,7 +55,7 @@ class FVMEvaluator(object):
         for eq in self.equations:
             transientvar[eq.idx] = eq.transientvar
         self.transientvar = transientvar
-        self.plan = tuple(builder.fungraph.plan())
+        self.plan = tuple(builder.fungraph.plan(kill_func=KillVars))
         self.context_type = context_type
 
     def _all_bc(self):
@@ -132,6 +141,6 @@ class FVMEvaluator(object):
     def converged(self, residuals, x, dx, params, report, equations=None):
         if equations is None:
             equations = self.equations
-        c = all([eq.testConvergedNew(residuals, x, dx, report)
+        c = all([eq.testConverged(residuals, x, dx, report)
                  for eq in equations])
         return c

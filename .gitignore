@@ -103,3 +103,5 @@ ENV/
 *~
 \#*\#
 doc/_build
+*.bib.bak
+*.bib.sav

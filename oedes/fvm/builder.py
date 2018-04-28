@@ -1,7 +1,7 @@
 # -*- coding: utf-8; -*-
 #
 # oedes - organic electronic device simulator
-# Copyright (C) 2017 Marek Zdzislaw Szymanski (marek@marekszymanski.com)
+# Copyright (C) 2017-2018 Marek Zdzislaw Szymanski (marek@marekszymanski.com)
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU Affero General Public License, version 3,
@@ -16,16 +16,18 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-__all__ = ['Builder', 'FVMBuilder']
+__all__ = ['BuilderData', 'FVMBuilder', 'discretize']
 
 import numpy as np
+from oedes.utils import BuilderData
 from collections import defaultdict
-from oedes.utils import FuncallGraph
 from .cell import FVMBoundaryEquation, FVMConservationEquation
 from .poisson import FVMPoissonEquation
 from .transport import FVMTransportEquation, FVMTransportChargedEquation
-from .discrete import GeneralDiscreteEquation, DiscreteEquation
+from .discrete import GeneralDiscreteEquation, DiscreteEquation, DummyConvergenceTest, DelegateConvergenceTest
 from .evaluator import FVMEvaluator
+from oedes.utils import ArgStack, EvaluationContext, as_computation
+from .mesh import mesh
 
 
 def _EquationBasedOrdering(equations):
@@ -60,22 +62,28 @@ def _CellBasedOrdering(equations):
     return i
 
 
-class Builder(object):
-    pass
-
-
-class FVMBuilder(Builder):
-    def __init__(self, ordering='equation'):
-        self.equations = []
-        self.key_to_eq = dict()
-        self.init_list = []
-        self.fungraph = FuncallGraph()
+class FVMBuilder(BuilderData):
+    def __init__(self, ordering='equation', mesh_mapper=None):
+        super(FVMBuilder, self).__init__()
         if ordering == 'cell':
-            self.indexer = _CellBasedOrdering
+            indexer = _CellBasedOrdering
         elif ordering == 'equation':
-            self.indexer = _EquationBasedOrdering
+            indexer = _EquationBasedOrdering
         else:
             raise ValueError('unknown equation order - %r' % ordering)
+        self.indexer = indexer
+        self.mesh_mapper = mesh_mapper
+
+    def getMesh(self, key):
+        if isinstance(key, mesh):
+            return key
+        return self.mesh_mapper(key)
+
+    def setUp(self, context_type):
+        self.ndof = self.indexer(self.equations)
+        self.initEquations()
+        self.evaluator = FVMEvaluator(self, context_type)
+        self.finalize(self.evaluator)
 
     def newPoissonEquation(self, *args, **kwargs):
         return FVMPoissonEquation(*args, **kwargs)
@@ -92,31 +100,33 @@ class FVMBuilder(Builder):
     def newGeneralDiscreteEquation(self, *args, **kwargs):
         return GeneralDiscreteEquation(*args, **kwargs)
 
-    def getMesh(self, obj):
-        return obj
-
     def add(self, owner, eq):
         assert isinstance(eq, DiscreteEquation)
         assert owner is not None
         if isinstance(eq, FVMBoundaryEquation):
             assert eq.convergenceTest is not None
-        assert id(owner) not in self.key_to_eq
-        self.equations.append(eq)
-        self.key_to_eq[id(owner)] = eq
+        super(FVMBuilder, self).add(owner, eq)
 
-    def addInitializer(self, func, *args):
-        self.init_list.append((func, args))
+    def newDelegateConvergenceTest(self, obj):
+        if obj is None:
+            return DummyConvergenceTest()
+        else:
+            return DelegateConvergenceTest(obj)
 
-    def addEvaluation(self, func):
-        self.fungraph.add(func)
 
-    def setUp(self, context_type):
-        self.ndof = self.indexer(self.equations)
-        for func, args in self.init_list:
-            func(self, *args)
-        for eq in self.equations:
-            eq.init(self)
-        self.evaluator = FVMEvaluator(self, context_type)
+def _meshdict(arg):
+    if isinstance(arg, mesh):
+        d = {None: arg}
+    else:
+        d = arg
+    return lambda x: d[x]
 
-    def get(self, owner):
-        return self.key_to_eq[id(owner)]
+
+def discretize(obj, mesh=None, **kwargs):
+    obj = as_computation(obj)
+    builder = FVMBuilder(mesh_mapper=_meshdict(mesh), **kwargs)
+    obj.discretize(builder)
+    builder.setUp(EvaluationContext)
+    for _, eq in obj.all_equations(ArgStack()):
+        eq.idx = builder.get(eq).idx  # TODO:
+    return builder.evaluator

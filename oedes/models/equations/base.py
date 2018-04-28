@@ -1,7 +1,7 @@
 # -*- coding: utf-8; -*-
 #
 # oedes - organic electronic device simulator
-# Copyright (C) 2017 Marek Zdzislaw Szymanski (marek@marekszymanski.com)
+# Copyright (C) 2017-2018 Marek Zdzislaw Szymanski (marek@marekszymanski.com)
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU Affero General Public License, version 3,
@@ -16,68 +16,77 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-from oedes.fvm import FVMConservationEquation, FVMBoundaryEquation, DummyConvergenceTest
-from oedes.utils import Funcall, Computation
+from oedes.ad import getitem, sparsesum, dot
+from oedes.utils import EquationWithMesh, Equation
+import itertools
+import weakref
 
-__all__ = [
-    'DelegateConvergenceTest',
-    'Equation',
-    'ConservationEquation',
-    'BoundaryEquation',
-    'Calculation',
-    'Funcall']
+__all__ = ['ConservationEquation', 'BoundaryEquation']
 
 
-class Equation(Computation):
-    def __init__(self, name=None):
-        self.name = name
-        self.convergenceTest = None
-
-    @property
-    def prefix(self):
-        return self.name
-
-    def all_equations(self, args):
-        yield (args.push(prefix=self.name), self)
-
-
-class DelegateConvergenceTest(object):
-    def __init__(self, target):
-        self.target = target
-
-    def testEquationNew(self, eq, F, x, dx, report):
-        return self.target.convergenceTest.testEquationNew(
-            eq, F, x, dx, report)
-
-    def testBoundaryNew(self, eq, bc, F, x, dx, report):
-        return self.target.convergenceTest.testBoundaryNew(
-            eq, bc, F, x, dx, report)
-
-
-class ConservationEquation(Equation):
-    def __init__(self, mesh, name=None):
-        super(ConservationEquation, self).__init__(name)
+class ConservationEquation(EquationWithMesh):
+    def __init__(self, mesh=None, name=None):
+        super(ConservationEquation, self).__init__(mesh, name)
         self.defaultBCConvergenceTest = None
-        self.mesh = mesh
         self.bc = []
 
     def load(self, ctx, eq):
+        super(ConservationEquation, self).load(ctx, eq)
         vars = ctx.varsOf(eq)
-        vars['x'] = ctx.gvars['x'][eq.idx]
-        vars['xt'] = ctx.gvars['xt'][eq.idx]
+        vars['boundary_sources'] = []
+        vars['boundary_FdS'] = []
 
-    def evaluate_bc(self, ctx, eq, v, fluxes, FdS_boundary,
-                    celltransient_boundary=0., cellsource_boundary=0.):
+    def _evaluate_bc(self, ctx, eq, FdS_boundary,
+                     celltransient_boundary=0., cellsource_boundary=0.):
         conservation = -FdS_boundary + eq.mesh.cells['volume'][
             eq.mesh.boundary.idx] * (celltransient_boundary - cellsource_boundary)
         ctx.gvars['bc_conservation'].append((eq.boundary_labels, conservation))
 
+    def residuals(self, ctx, eq, flux, source=None, transient=0.):
+        variables = ctx.varsOf(eq)
+        yield eq.residuals(eq.mesh.internal, flux, cellsource=source, celltransient=transient)
+        n = len(eq.mesh.boundary.cells)
+        bc_FdS = sparsesum(n, variables['boundary_FdS'])
+        bc_source = sparsesum(n, variables['boundary_sources'])
+        if flux is not None:
+            bc_FdS = dot(eq.mesh.boundary.fluxsum, flux) + bc_FdS
+        if source is not None:
+            bc_source = getitem(source, eq.mesh.boundary.idx) + bc_source
+        bc_transient = getitem(transient, eq.mesh.boundary.idx)
+        variables['total_boundary_FdS'] = bc_FdS
+        variables['total_boundary_sources'] = bc_source
+        variables['total_boundary_transient'] = bc_transient
+        self._evaluate_bc(
+            ctx,
+            eq,
+            bc_FdS,
+            cellsource_boundary=bc_source,
+            celltransient_boundary=bc_transient)
+
+    def identity(self, ctx, eq):
+        yield eq.identity(ctx.varsOf(eq)['x'])
+
+    def all_equations(self, args):
+        def bcs():
+            for bc in self.bc:
+                yield bc
+        for eq in super(ConservationEquation, self).all_equations(args):
+            yield eq
+        for bc in self.bc:
+            assert bc._owner_eq is None
+            if bc._owner_eq_weak is None:
+                bc._owner_eq_weak = weakref.ref(self)
+            else:
+                assert bc._owner_eq_weak() is self
+            for eq in bc.all_equations(args):
+                yield eq
+
 
 class BoundaryEquation(Equation):
-    def __init__(self, name):
+    def __init__(self, name, owner=None):
         super(BoundaryEquation, self).__init__(name)
         self._owner_eq_weak = None
-        self._owner_eq = None
+        self._owner_eq = owner
 
     @property
     def owner_eq(self):
@@ -87,29 +96,15 @@ class BoundaryEquation(Equation):
         assert self._owner_eq_weak is not None, 'no reference to owner'
         return self._owner_eq_weak()
 
-    def build(self, builder):
-        obj = builder.newDirichletBC(builder.get(self.owner_eq), self.name)
-        self._build_bc(builder, obj)
-        return obj
+    def newDiscreteEq(self, builder):
+        return builder.newDirichletBC(builder.get(self.owner_eq), self.name)
 
     def evaluate(self, ctx, eq):
         raise NotImplementedError()
 
-    def _init(self, builder, obj):
+    def initDiscreteEq(self, builder, obj):
+        super(BoundaryEquation, self).initDiscreteEq(builder, obj)
+        obj.convergenceTest = builder.newDelegateConvergenceTest(self.owner_eq)
         obj.owner_eq = builder.get(self.owner_eq)
         obj.evaluate.depends(obj.owner_eq.load)
-
-    def _build_bc(self, builder, obj):
-        obj.convergenceTest = DelegateConvergenceTest(self)
-        obj.evaluate = Funcall(self.evaluate, obj)
-        builder.add(self, obj)
-        builder.addInitializer(self._init, obj)
-        builder.addEvaluation(obj.evaluate)
-
-
-class Calculation(Equation):
-    def build(self, builder):
-        obj = builder.newGeneralDiscreteEquation(0)
-        obj.convergenceTest = DummyConvergenceTest()
-        builder.add(self, obj)
-        return obj
+        obj.owner_eq.alldone.depends(obj.evaluate)

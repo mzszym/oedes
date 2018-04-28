@@ -1,7 +1,7 @@
 # -*- coding: utf-8; -*-
 #
 # oedes - organic electronic device simulator
-# Copyright (C) 2017 Marek Zdzislaw Szymanski (marek@marekszymanski.com)
+# Copyright (C) 2017-2018 Marek Zdzislaw Szymanski (marek@marekszymanski.com)
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU Affero General Public License, version 3,
@@ -112,8 +112,8 @@ class FVMTransportChargedEquation(FVMTransportEquation):
     def v(self, mu, E):
         return E * mu * self.z
 
-    def D(self, mu, Vt):
-        return mu * Vt
+    def D(self, mu, D_mu):
+        return mu * D_mu
 
     def chargedensity(self, c):
         return c * self.ze

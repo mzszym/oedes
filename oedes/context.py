@@ -1,7 +1,7 @@
 # -*- coding: utf-8; -*-
 #
 # oedes - organic electronic device simulator
-# Copyright (C) 2017 Marek Zdzislaw Szymanski (marek@marekszymanski.com)
+# Copyright (C) 2017-2018 Marek Zdzislaw Szymanski (marek@marekszymanski.com)
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU Affero General Public License, version 3,
@@ -19,7 +19,7 @@
 from . import solver
 from .model import model
 from .models import Poisson
-from .models.solver import PoissonOnly
+from .models.solver import PoissonOnly, SolverObject
 
 from collections import namedtuple
 import numpy as np
@@ -190,7 +190,7 @@ class context(object):
         "Provide output for current solution"
         if self._output is None:
             self._output = self.model.output(
-                self.time, self.x, self.xt, self.params)
+                self.time, self.x, self.xt, self.params, solver=SolverObject())
         return self._output
 
     # Plotting
@@ -275,7 +275,7 @@ class context(object):
         return solver.solve(self.model, xguess, params, niter=1, **kwargs)
 
     def _solve(self, xguess, params, pseudo_tmax=1e6, pseudo_dt0=1e-9,
-               pseudo_mindt=1e-15, pseudo_maxsteps=200, use_poisson_guess=True, allow_transient=True, **kwargs):
+               pseudo_mindt=1e-20, pseudo_maxsteps=200, use_poisson_guess=True, allow_transient=True, **kwargs):
         if use_poisson_guess:
             xguess = self._psolve(params, xguess=xguess, kwargs=kwargs)
         try:

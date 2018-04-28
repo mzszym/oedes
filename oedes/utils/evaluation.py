@@ -1,7 +1,7 @@
 # -*- coding: utf-8; -*-
 #
 # oedes - organic electronic device simulator
-# Copyright (C) 2017 Marek Zdzislaw Szymanski (marek@marekszymanski.com)
+# Copyright (C) 2017-2018 Marek Zdzislaw Szymanski (marek@marekszymanski.com)
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU Affero General Public License, version 3,
@@ -17,7 +17,9 @@
 #
 
 import collections
-from oedes.fvm import DiscreteEquation
+from .computation import Computation
+
+__all__ = ['OutputMeta', 'Units', 'FreedVars', 'EvaluationContext', 'meta_key']
 
 OutputMeta = collections.namedtuple('OutputMeta', ['mesh', 'face', 'unit'])
 
@@ -32,6 +34,7 @@ class Units:
     dconcentration_dt = '1/(m^3 s)'
     flux = '1/(m^3 s)'
     eV = 'eV'
+    meter = 'm'
 
     @classmethod
     def check(cls, unit):
@@ -50,6 +53,10 @@ class Units:
 meta_key = '.meta'
 
 
+class FreedVars(object):
+    pass
+
+
 class EvaluationContext(object):
     UPPER = '..'
 
@@ -57,7 +64,7 @@ class EvaluationContext(object):
 
     def __init__(self, params, outputs, vardict=None, gvars=None):
         if vardict is None:
-            vardict = collections.defaultdict(dict)
+            vardict = dict()
         assert gvars is not None
         self._vardict = vardict
         self.params = params
@@ -70,17 +77,30 @@ class EvaluationContext(object):
                 self.outputs[meta_key] = dict()
             self.outputs_meta = self.outputs[meta_key]
 
+    def newVars(self, obj, varobj=None):
+        if varobj is None:
+            varobj = dict()
+        assert not isinstance(obj, Computation)
+        k = id(obj)
+        assert k not in self._vardict
+        self._vardict[k] = varobj
+        return varobj
+
     def varsOf(self, obj):
-        assert isinstance(obj, DiscreteEquation)
+        assert not isinstance(obj, Computation)
         return self._vardict[id(obj)]
+
+    def killVars(self, obj):
+        assert not isinstance(obj, Computation)
+        self._vardict[id(obj)] = FreedVars()
 
     @property
     def wants_output(self):
         return self.outputs is not None
 
     def _path(self, eq, *args):
-        if eq is not None and eq.new_prefix:
-            path = list(eq.new_prefix.split('.'))
+        if eq is not None and eq.prefix:
+            path = list(eq.prefix.split('.'))
         else:
             path = []
         for a in args:

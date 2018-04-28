@@ -1,7 +1,7 @@
 # -*- coding: utf-8; -*-
 #
 # oedes - organic electronic device simulator
-# Copyright (C) 2017 Marek Zdzislaw Szymanski (marek@marekszymanski.com)
+# Copyright (C) 2017-2018 Marek Zdzislaw Szymanski (marek@marekszymanski.com)
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU Affero General Public License, version 3,
@@ -19,13 +19,9 @@
 __all__ = ['CompositeModel', 'With', 'Coupled']
 
 from oedes import model
-from oedes.fvm import FVMBuilder
-from .utils import EvaluationContext
-from oedes.utils import With, ArgStack, Coupled
-from .solver import SolverObject, RamoShockleyCalculation
-from .import boundary
-from oedes.solver import solve
-import numpy as np
+from oedes.fvm import discretize
+from oedes.utils import With, Coupled
+from .solver import SolverObject
 
 
 class ModelAdapter(model):
@@ -57,55 +53,23 @@ class ModelAdapter(model):
         return self.discrete_model.evaluate(
             time, x, xt, params, full_output=full_output, solver=solver)
 
-    def setUpRamoShockleyTestfunctions(
-            self, dtype=np.double, solve_kwargs=None):
-        if solve_kwargs is None:
-            solve_kwargs = dict()
-        rs_boundaries = set()
-        for _, eq in self.all_equations(ArgStack()):
-            if isinstance(eq, boundary.AppliedVoltage):
-                rs_boundaries.add(eq.name)
-        params = dict()
-        for b in rs_boundaries:
-            s = RamoShockleyCalculation(b, store=False)
-            x = solve(
-                self,
-                np.asarray(
-                    self.X,
-                    dtype=dtype),
-                params,
-                niter=1,
-                solver=s,
-                **solve_kwargs)
-            s = RamoShockleyCalculation(b, store=True)
-            self.output(
-                0,
-                x,
-                np.zeros_like(x),
-                params,
-                solver=s,
-                **solve_kwargs)
-
-    def setUp(self):
+    def setUp(self, *args, **kwargs):
         assert self.discrete_model is None, 'already set-up'
-        builder = FVMBuilder(ordering=self.ordering)
-        self.discretize(builder)
-        builder.setUp(EvaluationContext)
-        for _, eq in self.all_equations(ArgStack()):
-            eq.idx = builder.get(eq).idx  # TODO:
-        self.discrete_model = builder.evaluator
-        self.setUpRamoShockleyTestfunctions()
+        self.discrete_model = discretize(
+            self, ordering=self.ordering, *args, **kwargs)
 
 
 class CompositeModel(ModelAdapter, Coupled):
-    def __init__(self):
+    def __init__(self, parts=None):
         super(CompositeModel, self).__init__()
         self.sub = []
         self.other = []
+        if parts is not None:
+            self.other.extend(parts)
 
     @property
     def parts(self):
         for sub in self.sub:
-            yield With(sub, prefix=sub.name)
+            yield With(sub, name=sub.name)
         for other in self.other:
             yield other

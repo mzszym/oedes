@@ -1,7 +1,7 @@
 # -*- coding: utf-8; -*-
 #
 # oedes - organic electronic device simulator
-# Copyright (C) 2017 Marek Zdzislaw Szymanski (marek@marekszymanski.com)
+# Copyright (C) 2017-2018 Marek Zdzislaw Szymanski (marek@marekszymanski.com)
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU Affero General Public License, version 3,
@@ -24,7 +24,8 @@ from oedes.fvm import mesh1d
 import numpy as np
 import itertools
 from matplotlib.collections import LineCollection
-from oedes.models.utils import meta_key
+from matplotlib.ticker import EngFormatter
+from oedes.utils import meta_key, Units
 
 __all__ = ['matplotlib', 'plt', 'forcontext', 'subplots', 'Settings']
 
@@ -34,26 +35,43 @@ class mesh1d_mpl(object):
         self.fig = fig
         self.ax = ax
         self.cycler = itertools.cycle(matplotlib.rcParams['axes.prop_cycle'])
+        self.yunits = set()
+        self.xunits = set()
 
-    def plot(self, items, face, *args, **kwargs):
-
-        def map(item):
-            mesh, value = item
+    def plot(self, items, *args, **kwargs):
+        if 'color' not in kwargs:
+            kwargs['color'] = next(self.cycler)['color']
+        lines = []
+        for item in items:
+            meta, value = item
+            mesh = meta.mesh
+            face = meta.face
             if not isinstance(mesh, mesh1d):
                 raise ValueError('mesh type not supported')
             if face:
                 X = mesh.faces['center']
             else:
                 X = mesh.cells['center']
-            return np.vstack((X, value)).transpose()
-        if 'color' not in kwargs:
-            kwargs['color'] = next(self.cycler)['color']
-        self.ax.add_collection(LineCollection(
-            [map(i) for i in items], *args, **kwargs))
+            lines.append(np.vstack((X, value)).transpose())
+            self.yunits.add(meta.unit)
+        self.xunits.add(Units.meter)
+        self.ax.add_collection(LineCollection(lines, *args, **kwargs))
         self.ax.autoscale()
 
     def settings(self, settings):
+        yunits = ' / '.join(r'$\mathrm{{{}}}$'.format(u)
+                            for u in sorted(self.yunits))
+        xunits = ' / '.join(r'$\mathrm{{{}}}$'.format(u)
+                            for u in sorted(self.xunits))
 
+        if 'ylabel' not in settings:
+            self.ax.set_ylabel(yunits)
+        if 'xlabel' not in settings and 'xunit' not in settings:
+            if self.xunits == set([Units.meter]):
+                self.ax.set_xlabel('Position')
+                self.ax.xaxis.set_major_formatter(EngFormatter(unit=xunits))
+            else:
+                self.ax.set_xlabel(xunits)
         for name in ['xlabel', 'ylabel', 'xlim', 'ylim', 'xscale', 'yscale']:
             if name in settings:
                 getattr(self.ax, 'set_' + name)(settings[name])
@@ -173,7 +191,7 @@ class context_plotting:
         for k in sorted(self.out.keys()):
             match = r.match(k)
             if match:
-                ent = (self.out[meta_key][k].mesh, self.out[k])
+                ent = (self.out[meta_key][k], self.out[k])
                 if not with_label:
                     yield k, [ent]
                 else:
@@ -181,12 +199,21 @@ class context_plotting:
         for k in sorted(grouped.keys()):
             yield k, grouped[k]
 
-    def _plot(self, parts, face=False, settings={}, *args, **kwargs):
+    def _plot(self, parts, settings=None, *args, **kwargs):
         if not parts:
             return
-        impl = self.getimpl(parts[0][0])
-        impl.plot(parts, *args, face=face, **kwargs)
-        impl.settings(settings)
+        impl = self.getimpl(parts[0][0].mesh)
+        impl.plot(parts, *args, **kwargs)
+        if settings is not None:
+            impl.settings(settings)
+
+    def apply_settings(self, settings):
+        if self._impl is not None:
+            self._impl.settings(settings)
+
+    def plot(self, keys, *args, **kwargs):
+        plotlist = [(self.out[meta_key][k], self.out[k]) for k in keys]
+        return self._plot(plotlist, *args, **kwargs)
 
     def selector(self, expr, *args, **kwargs):
         if 'settings' not in kwargs:

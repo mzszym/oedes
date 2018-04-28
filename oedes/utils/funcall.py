@@ -1,7 +1,7 @@
 # -*- coding: utf-8; -*-
 #
 # oedes - organic electronic device simulator
-# Copyright (C) 2017 Marek Zdzislaw Szymanski (marek@marekszymanski.com)
+# Copyright (C) 2017-2018 Marek Zdzislaw Szymanski (marek@marekszymanski.com)
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU Affero General Public License, version 3,
@@ -40,7 +40,12 @@ class Funcall(object):
         return self is other
 
     def __call__(self, ctx):
-        return self.func(ctx, self._obj())
+        return self.func(ctx, self.obj())
+
+    def obj(self):
+        obj = self._obj()
+        assert obj is not None
+        return obj
 
 
 class FuncallGraph(object):
@@ -50,24 +55,50 @@ class FuncallGraph(object):
     def add(self, func):
         self.evaluations.append(func)
 
-    def plan(self):
-        evaluations = self.evaluations
+    def plan(self, kill_func=None):
+        evaluations = list(self.evaluations)
         rdeps = defaultdict(list)
-        queue = []
-        for e in evaluations:
+        queue = list()
+
+        # Build reverse dependence graph `rdeps`, and set of all calculations
+        # `known`
+        known = set(self.evaluations)
+        while evaluations:
+            e = evaluations.pop()
             assert isinstance(e, Funcall)
             for d in e._depends:
                 assert isinstance(d, Funcall)
                 rdeps[d].append(e)
+                # if dependence was not added explicitely by calling `add`
+                # method, add it here
+                if d not in known:
+                    known.add(d)
+                    evaluations.append(d)
             if not e._depends:
                 queue.append(e)
-        count = dict((f, len(f._depends)) for f in evaluations)
+
+        waitcount = dict((f, len(f._depends)) for f in known)
+        usecount_byobj = defaultdict(int)
+        for f in known:
+            for d in f._depends:
+                usecount_byobj[id(d.obj())] += 1
         while queue:
             t = queue.pop()
-            yield t
+            if t.func is not None:  # do not yield checkpoints where fun is None
+                yield t
+            if not usecount_byobj[id(t.obj())]:
+                yield kill_func(t.obj())
+            for d in t._depends:
+                obj = d._obj()
+                assert usecount_byobj[id(obj)] > 0
+                usecount_byobj[id(obj)] -= 1
+                if not usecount_byobj[id(obj)]:
+                    if kill_func is not None:
+                        yield kill_func(obj)
             for r in rdeps[t]:
-                count[r] -= 1
-                if count[r] == 0:
+                assert waitcount[r] >= 1
+                waitcount[r] -= 1
+                if waitcount[r] == 0:
                     queue.append(r)
-        assert not any(count.values(
+        assert not any(waitcount.values(
         )), 'unfinished tasks left: not added but registered as dependencies or dependence cycles'

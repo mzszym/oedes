@@ -1,7 +1,7 @@
 # -*- coding: utf-8; -*-
 #
 # oedes - organic electronic device simulator
-# Copyright (C) 2017 Marek Zdzislaw Szymanski (marek@marekszymanski.com)
+# Copyright (C) 2017-2018 Marek Zdzislaw Szymanski (marek@marekszymanski.com)
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU Affero General Public License, version 3,
@@ -219,7 +219,7 @@ def unipolar(L, polarity='p'):
     mesh = mesh1d(L)
     model = BaseModel()
     electronic_device(model, mesh, polarity)
-    prefix = model.species[0].prefix
+    prefix = model.species[0].name
     params = {
         'T': 300,
         'epsilon_r': 3.,

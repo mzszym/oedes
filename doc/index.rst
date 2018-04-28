@@ -2,12 +2,16 @@ Organic Electronic Device Simulator (oedes) documentation
 =========================================================
 
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 1
    :caption: Contents:
 
    introduction
+   features
    install
-   usage
+   tutorial
+   physics
+   examples
+   reference
 
 Indices and tables
 ==================

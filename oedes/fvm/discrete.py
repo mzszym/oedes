@@ -1,7 +1,7 @@
 # -*- coding: utf-8; -*-
 #
 # oedes - organic electronic device simulator
-# Copyright (C) 2017 Marek Zdzislaw Szymanski (marek@marekszymanski.com)
+# Copyright (C) 2017-2018 Marek Zdzislaw Szymanski (marek@marekszymanski.com)
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU Affero General Public License, version 3,
@@ -71,30 +71,31 @@ class ElementwiseConvergenceTest(ConvergenceTest):
             logger.debug(' %s' % ' '.join(list(map(fmt, infodict.items()))))
         return converged
 
-    def testEquationNew(self, eq, F, x, dx, report):
+    def testEquation(self, eq, F, x, dx, report):
         ix_all = np.hstack(
             [eq.mesh.internal.idx, eq.mesh.boundary.idx[eq.bc_dof_is_free]])
-        return self._testix(eq, ix_all, F, x, dx, report, eq.new_prefix)
+        return self._testix(eq, ix_all, F, x, dx, report, eq.prefix)
 
-    def testBoundaryNew(self, eq, bc, F, x, dx, report):
+    def testBoundary(self, eq, bc, F, x, dx, report):
         assert bc.owner_eq is eq
         return self._testix(eq, eq.mesh.boundary.idx[
-                            bc.boundary['bidx']], F, x, dx, report, eq.new_prefix + '.' + bc.name)
+                            bc.boundary['bidx']], F, x, dx, report, '.'.join([str(eq.prefix), bc.name]))
 
 
 class DummyConvergenceTest(ConvergenceTest):
-    def testEquationNew(self, eq, F, x, dx, report):
+    def testEquation(self, eq, F, x, dx, report):
         return True
 
-    def testBoundaryNew(self, eq, bc, F, x, dx, report):
+    def testBoundary(self, eq, bc, F, x, dx, report):
         return True
 
 
 class DiscreteEquation(object):
-    def __init__(self):
+    def __init__(self, name=None):
         self.convergenceTest = None
         self.idx = None
         self.transientvar = 1.
+        self.name = name
 
     def init(self, builder):
         pass
@@ -105,14 +106,27 @@ class DiscreteEquation(object):
     def scaling(self, xscaling, fscaling):
         pass
 
-    def testConvergedNew(self, F, x, dx, report):
-        return self.convergenceTest.testEquationNew(self, F, x, dx, report)
+    def testConverged(self, F, x, dx, report):
+        return self.convergenceTest.testEquation(self, F, x, dx, report)
 
 
 class GeneralDiscreteEquation(DiscreteEquation):
-    def __init__(self, ndof):
-        super(GeneralDiscreteEquation, self).__init__()
+    def __init__(self, ndof, name=None):
+        super(GeneralDiscreteEquation, self).__init__(name=name)
         self._ndof = ndof
 
     def ndof(self):
         return self._ndof
+
+
+class DelegateConvergenceTest(object):
+    def __init__(self, target):
+        self.target = target
+
+    def testEquation(self, eq, F, x, dx, report):
+        return self.target.convergenceTest.testEquation(
+            eq, F, x, dx, report)
+
+    def testBoundary(self, eq, bc, F, x, dx, report):
+        return self.target.convergenceTest.testBoundary(
+            eq, bc, F, x, dx, report)

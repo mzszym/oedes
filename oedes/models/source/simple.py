@@ -1,7 +1,7 @@
 # -*- coding: utf-8; -*-
 #
 # oedes - organic electronic device simulator
-# Copyright (C) 2017 Marek Zdzislaw Szymanski (marek@marekszymanski.com)
+# Copyright (C) 2017-2018 Marek Zdzislaw Szymanski (marek@marekszymanski.com)
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU Affero General Public License, version 3,
@@ -22,11 +22,11 @@ __all__ = ['DirectGeneration', 'SimpleGenerationTerm', 'SimpleDecayTerm']
 
 
 class DirectGeneration(BulkSource):
-    def __init__(self, eqs, function, prefix='absorption'):
+    def __init__(self, eqs, function, name='absorption'):
         super(
             DirectGeneration,
             self).__init__(
-            name=prefix,
+            name=name,
             eq_reflists=['eqs'])
         assert sum(eq.z for eq in eqs) == 0
         self.function = function
@@ -42,25 +42,25 @@ class DirectGeneration(BulkSource):
 
 
 class SimpleGenerationTerm(DirectGeneration):
-    def __init__(self, eq, function, prefix='absorption'):
+    def __init__(self, eq, function, name='absorption'):
         super(
             SimpleGenerationTerm,
             self).__init__(
             [eq],
             function,
-            prefix=eq.prefix +
+            name=eq.name +
             '.' +
-            prefix)
+            name)
 
 
 class SimpleDecayTerm(BulkSource):
-    def __init__(self, eq, prefix='decay'):
-        super(SimpleDecayTerm, self).__init__(name=prefix, eq_refs=['eq'])
+    def __init__(self, eq, name='decay'):
+        super(SimpleDecayTerm, self).__init__(name=name, eq_refs=['eq'])
         assert eq.z == 0
         self.eq = eq
 
     def evaluate(self, ctx, eq):
         if ctx.solver.poissonOnly:
             return
-        f = ctx.varsOf(eq.eq)['c'] * ctx.param(eq.eq, self.prefix)
+        f = ctx.varsOf(eq.eq)['c'] * ctx.param(eq.eq, self.name)
         self.add(ctx, f, minus=[eq.eq])

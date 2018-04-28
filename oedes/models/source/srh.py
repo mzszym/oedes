@@ -1,7 +1,7 @@
 # -*- coding: utf-8; -*-
 #
 # oedes - organic electronic device simulator
-# Copyright (C) 2017 Marek Zdzislaw Szymanski (marek@marekszymanski.com)
+# Copyright (C) 2017-2018 Marek Zdzislaw Szymanski (marek@marekszymanski.com)
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU Affero General Public License, version 3,
@@ -25,13 +25,9 @@ __all__ = ['SRH']
 class SRH(_Recombination):
     "SRH (steady-state) term"
 
-    def __init__(self, electron_eq, hole_eq, prefix='srh'):
-        super(
-            SRH,
-            self).__init__(
-            electron_eq=electron_eq,
-            hole_eq=hole_eq,
-            name=prefix)
+    def __init__(self, *args, **kwargs):
+        name = kwargs.pop('name', 'srh')
+        super(SRH, self).__init__(*args, name=name, **kwargs)
 
     def evaluate(self, ctx, eq):
         assert eq.hole_eq.thermal is eq.electron_eq.thermal
@@ -43,8 +39,8 @@ class SRH(_Recombination):
             exp((ctx.param(eq.electron_eq, 'level') - Et) / Vt)
         pi = ctx.param(eq.hole_eq, 'N0') * \
             exp((Et - ctx.param(eq.hole_eq, 'level')) / Vt)
-        Cn = ctx.param(eq.electron_eq, self.prefix, 'trate')
-        Cp = ctx.param(eq.hole_eq, self.prefix, 'trate')
+        Cn = ctx.param(eq.electron_eq, self.name, 'trate')
+        Cp = ctx.param(eq.hole_eq, self.name, 'trate')
         n = ctx.varsOf(eq.electron_eq)['c']
         p = ctx.varsOf(eq.hole_eq)['c']
         g = Cn * Cp * ctx.param(eq, 'N0') * \

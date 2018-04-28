@@ -1,7 +1,7 @@
 # -*- coding: utf-8; -*-
 #
 # oedes - organic electronic device simulator
-# Copyright (C) 2017 Marek Zdzislaw Szymanski (marek@marekszymanski.com)
+# Copyright (C) 2017-2018 Marek Zdzislaw Szymanski (marek@marekszymanski.com)
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU Affero General Public License, version 3,
@@ -97,7 +97,7 @@ setup(name='oedes',
       install_requires=[
           'numpy',
           'scipy',
-          'sparsegrad>=0.0.6',
+          'sparsegrad>=0.0.9',
           'tmm>=0.1.7',
           'tqdm>=4.19',
           'nose',

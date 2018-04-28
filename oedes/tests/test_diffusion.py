@@ -1,7 +1,7 @@
 # -*- coding: utf-8; -*-
 #
 # oedes - organic electronic device simulator
-# Copyright (C) 2017 Marek Zdzislaw Szymanski (marek@marekszymanski.com)
+# Copyright (C) 2017-2018 Marek Zdzislaw Szymanski (marek@marekszymanski.com)
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU Affero General Public License, version 3,
@@ -26,7 +26,7 @@ make_plots = False
 
 from oedes import solve, bdf1adapt, models, transientsolve
 from oedes.fvm import mesh1d
-from oedes.models import AppliedVoltage, Poisson, TransportCharged
+from oedes.models import AppliedVoltage, Poisson, AdvectionDiffusion
 from oedes import context
 from oedes import testing
 import numpy as np
@@ -53,14 +53,13 @@ def run_diffusion(L, times, bc_equation=None,
     # All species are uncharged
 
     def v_D(ctx, eq):
-        return 0., kwargs[eq.prefix][0]
+        return 0., kwargs[eq.name][0]
     s = dict()
     for k in sorted(kwargs.keys()):
-        species = TransportCharged(mesh, k, z=0)
+        species = AdvectionDiffusion(mesh, k, z=0, v_D=v_D)
         b.species.append(species)
         if bc_equation is not None:
             species.bc = bc_equation(species)
-        b.species_v_D[k] = v_D
         s[k] = species
     b.setUp()
     params = {'T': 300., 'electrode0.voltage': 0, 'electrode1.voltage': 0, 'electrode0.workfunction': 0,
@@ -72,8 +71,8 @@ def run_diffusion(L, times, bc_equation=None,
 
     def update_conservation(t, out):
         for eq in b.species:
-            store(out[eq.prefix + '.c'], rtol=1e-5, atol=1e-20)
-        cons = [integrate_c(eq, out[eq.prefix + '.c']) for eq in b.species]
+            store(out[eq.name + '.c'], rtol=1e-5, atol=1e-20)
+        cons = [integrate_c(eq, out[eq.name + '.c']) for eq in b.species]
         for species in b.species:
             conservation.append((t,) + tuple(cons))
     update_conservation(0., b.output(0, xinit, 0. * xinit, params))

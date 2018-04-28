@@ -1,7 +1,7 @@
 # -*- coding: utf-8; -*-
 #
 # oedes - organic electronic device simulator
-# Copyright (C) 2017 Marek Zdzislaw Szymanski (marek@marekszymanski.com)
+# Copyright (C) 2017-2018 Marek Zdzislaw Szymanski (marek@marekszymanski.com)
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU Affero General Public License, version 3,
@@ -35,6 +35,15 @@ class SolverError(RuntimeError):
 
     def __init__(self, *args):
         RuntimeError.__init__(self, *args)
+
+
+class SolverObject(object):
+    def __init__(self):
+        pass
+
+    @property
+    def poissonOnly(self):
+        return False
 
 
 # In[41]:
@@ -114,6 +123,9 @@ def solve(model, x0, params, tconst=0., tshift=0., time=0.,
 
     Returns x,xt.
     """
+
+    if solver is None:
+        solver = SolverObject()
 
     F = model.residuals
     xscaling, fscaling = model.scaling(params)
@@ -308,19 +320,6 @@ def transientsolve_(model, x0, params, timesteps,
 def transientsolve(*args, **kwargs):
     for t, dt, x, xt, output in transientsolve_(*args, **kwargs):
         yield t, x, xt, output
-
-
-def asarrays(generator, outputs=['J'], monitor=lambda t, x, xt, out: None):
-    data = dict([(o, []) for o in outputs])
-    assert 'time' not in data
-    data['time'] = []
-    for t, x, xt, outf in generator:
-        out = outf()
-        data['time'].append(t)
-        for k in outputs:
-            data[k].append(out[k])
-        monitor(t, x, xt, out)
-    return dict([(k, np.asarray(data[k])) for k in data])
 
 
 class ACSolver:

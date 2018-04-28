@@ -1,7 +1,7 @@
 # -*- coding: utf-8; -*-
 #
 # oedes - organic electronic device simulator
-# Copyright (C) 2017 Marek Zdzislaw Szymanski (marek@marekszymanski.com)
+# Copyright (C) 2017-2018 Marek Zdzislaw Szymanski (marek@marekszymanski.com)
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU Affero General Public License, version 3,
@@ -16,39 +16,13 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-from .simple import *
-from .boundary import *
+__all__ = ['BoltzmannDOS']
+
 from oedes.ad import where, nvalue
-import numpy as np
 import logging
-
+import numpy as np
 from oedes import logs
-
-
-class DOS(object):
-
-    def Ef(self, ctx, eq):
-        "Return band-referenced Fermi level from concentration"
-        raise NotImplementedError()
-
-    def c(self, ctx, eq, Ef):
-        "Return concentration from band-referenced Fermi level"
-        raise NotImplementedError()
-
-    def D(self, ctx, eq, c, Ef):
-        "Return diffusion coefficient"
-        raise NotImplementedError()
-
-    def QuasiFermiLevel(self, ctx, eq):
-        assert eq.z in [1, -1]
-        Eband = -ctx.varsOf(eq.poisson)['potential'] - ctx.param(eq, 'level')
-        return Eband - eq.z * self.Ef(ctx, eq)
-
-    def concentration(self, ctx, eq, idx, imref):
-        assert eq.z in [1, -1]
-        Eband = - \
-            ctx.varsOf(eq.poisson)['potential'][idx] - ctx.param(eq, 'level')
-        return self.c(ctx, eq, -(imref - Eband) / eq.z)
+from .dos import DOS
 
 
 class BoltzmannDOS(DOS):
@@ -56,6 +30,9 @@ class BoltzmannDOS(DOS):
     c_limit = True
     Ef_max = None
     logger = logs.models.getChild('BoltzmannDOS')
+
+    def N0(self, ctx, eq):
+        return ctx.param(eq, 'N0')
 
     def Ef(self, ctx, eq):
         c = ctx.varsOf(eq)['c']
@@ -67,10 +44,13 @@ class BoltzmannDOS(DOS):
                     'Ef(%r): clipping c<%r, min(c)=%r' %
                     (eq.prefix, self.c_eps, np.amin(
                         nvalue(c_raw))))
-        N0 = ctx.param(eq, 'N0')
+        N0 = self.N0(ctx, eq)
         return ctx.varsOf(eq.thermal)['Vt'] * np.log(c / N0)
 
-    def c(self, ctx, eq, Ef):
+    def Ef_correction(self, ctx, eq):
+        return 0.
+
+    def c(self, ctx, eq, Ef, numeric_parameters=False):
         Ef_raw = Ef
         if self.Ef_max is not None:
             Ef = where(Ef < self.Ef_max, Ef, self.Ef_max)
@@ -80,8 +60,13 @@ class BoltzmannDOS(DOS):
                         'c(%r): clipping Ef>%r, max(Ef)=%r' %
                         (eq.prefix, self.Ef_max, np.amax(
                             nvalue(Ef_raw))))
-        N0 = ctx.param(eq, 'N0')
-        v = Ef / ctx.varsOf(eq.thermal)['Vt']
+        N0 = self.N0(ctx, eq)
+        if numeric_parameters:
+            N0 = nvalue(N0)
+        Vt = ctx.varsOf(eq.thermal)['Vt']
+        if numeric_parameters:
+            Vt = nvalue(Vt)
+        v = Ef / Vt
         if self.c_limit:
             v_raw = v
             v = where(v <= 0., v, 0.)
@@ -94,8 +79,5 @@ class BoltzmannDOS(DOS):
         c = np.exp(v) * N0
         return c
 
-    def D(self, ctx, eq, c, Ef):
+    def D_mu(self, parent_eq, ctx, eq):
         return ctx.varsOf(eq.thermal)['Vt']
-
-    def v_D(self, ctx, eq):
-        return species_v_D_charged_from_params(ctx, eq)
