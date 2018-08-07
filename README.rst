@@ -92,4 +92,5 @@ This builds and solves a model of abrupt PN junction:
 .. |Readthedocs-badge| image:: https://readthedocs.org/projects/oedes/badge/?version=latest
    :target: http://oedes.readthedocs.io/en/latest/?badge=latest
       
-.. |Binder-badge| image:: https://mybinder.org/badge.svg :target: https://mybinder.org/v2/gh/mzszym/oedes.git/master
+.. |Binder-badge| image:: https://mybinder.org/badge.svg
+   :target: https://mybinder.org/v2/gh/mzszym/oedes.git/master
