@@ -16,5 +16,26 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-version = '0.0.16'
-release = version
+from oedes.optical.databases.refractiveindex import RefractiveIndexInfoMaterial, RefractiveIndexInfoMaterialWarning
+import os
+path = os.path.dirname(__file__)
+
+Glass = RefractiveIndexInfoMaterial(
+    os.path.join(
+        path,
+        'glass.yml'),
+    ignore_warnings=True)
+Al = RefractiveIndexInfoMaterial(
+    os.path.join(
+        path,
+        'al.yml'),
+    ignore_warnings=True)
+PEDOT_PSS = RefractiveIndexInfoMaterial(
+    os.path.join(path, 'pedot_pss.yml'), ignore_warnings=True)
+P3HT_PC61BM = RefractiveIndexInfoMaterial(
+    os.path.join(path, 'p3ht_pc61bm.yml'), ignore_warnings=True)
+ITO = RefractiveIndexInfoMaterial(
+    os.path.join(
+        path,
+        'ito.yml'),
+    ignore_warnings=True)

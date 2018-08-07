@@ -22,7 +22,7 @@ __all__ = ['DirectGeneration', 'SimpleGenerationTerm', 'SimpleDecayTerm']
 
 
 class DirectGeneration(BulkSource):
-    def __init__(self, eqs, function, name='absorption'):
+    def __init__(self, eqs, function, name='generation', param_name='I'):
         super(
             DirectGeneration,
             self).__init__(
@@ -31,18 +31,25 @@ class DirectGeneration(BulkSource):
         assert sum(eq.z for eq in eqs) == 0
         self.function = function
         self.eqs = eqs
-        self.G = self.function(self.eqs[0].mesh.cells['center'])
+        self.param_name = param_name
+
+    def initDiscreteEq(self, builder, eq):
+        super(DirectGeneration, self).initDiscreteEq(builder, eq)
+        eq.eqs = tuple(map(builder.get, self.eqs))
+        meshes = tuple(map(lambda eq: eq.mesh, eq.eqs))
+        assert all([m == meshes[0] for m in meshes[1:]])
 
     def evaluate(self, ctx, eq):
         if ctx.solver.poissonOnly:
             return
-        g = self.G * ctx.param(eq, 'I')
+        G = self.function(eq.eqs[0].mesh.cells['center'])
+        g = G * ctx.param(eq, self.param_name)
         ctx.output([eq, 'G'], g)
         self.add(ctx, g, plus=eq.eqs)
 
 
 class SimpleGenerationTerm(DirectGeneration):
-    def __init__(self, eq, function, name='absorption'):
+    def __init__(self, eq, function, name='generation'):
         super(
             SimpleGenerationTerm,
             self).__init__(

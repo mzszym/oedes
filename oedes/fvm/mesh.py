@@ -127,11 +127,11 @@ class mesh1d(mesh):
 
         # Spacing for double layer region
         dldx_ = 10**np.linspace(np.log10(dx_dl), np.log10(dx_desired),
-                                np.ceil(np.log10(dx_desired / dx_dl) * 10))
+                                int(np.ceil(np.log10(dx_desired / dx_dl) * 10)))
         xdl_ = stack(0., np.cumsum(dldx_))
         n_normal_ = (L - (2 * xdl_[-1])) / dx_desired
         assert n_normal_ > 100
-        xnorm_ = np.linspace(xdl_[-1], L - xdl_[-1], n_normal_)
+        xnorm_ = np.linspace(xdl_[-1], L - xdl_[-1], int(n_normal_))
         x_ = stack(xdl_, xnorm_[1:-1], L - xdl_[::-1])
         return x_
 

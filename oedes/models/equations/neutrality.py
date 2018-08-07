@@ -69,8 +69,11 @@ class Electroneutrality(Calculation):
             s.alldone.depends(eq.load)
 
         # check if same mesh and same poisson equation
-        assert _same(s.poisson for s in species)
         eq.mesh = _same(s.mesh for s in species)
+        eq.poisson = _same(s.poisson for s in species)
+        eq.load.depends(eq.poisson.load)
+        for s in with_dos:
+            eq.load.depends(s.thermal.load)
 
         # Check conditions for application of analytical solution:
         # - bandgap, two species, different charges +-e
@@ -142,12 +145,14 @@ class Electroneutrality(Calculation):
         for s in eq.other:
             fixed = fixed + nvalue(ctx.varsOf(s)['c']) * s.z
         if eq.analytical and not self.force_general:
-            Ef, c = self.solve_analytical(ctx, eq, fixed)
+            Efv, c = self.solve_analytical(ctx, eq, fixed)
         else:
-            Ef, c = self.solve_general(ctx, eq, fixed)
-        ctx.varsOf(eq)['Ef'] = Ef
+            Efv, c = self.solve_general(ctx, eq, fixed)
+        ctx.varsOf(eq)['Efv'] = Efv
         ctx.varsOf(eq)['conc_Ef'] = c
+        Ef = -ctx.varsOf(eq.poisson)['potential'] + Efv
         ctx.outputCell([eq, 'Ef'], Ef, unit=ctx.units.eV)
+        ctx.outputCell([eq, 'phi'], -Ef, unit=ctx.units.V)
         for s, sc in zip(eq.with_dos, self.with_dos):
             ctx.outputCell([eq, sc.name, 'c'], c[id(s)],
                            unit=ctx.units.concentration)

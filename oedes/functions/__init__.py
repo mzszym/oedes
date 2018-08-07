@@ -22,3 +22,4 @@ from .rc import *
 from .brent import *
 from . import gdos
 from . import egdm
+from .optical import *

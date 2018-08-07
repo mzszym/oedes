@@ -70,3 +70,12 @@ class ChargedSpecies(EquationWithMesh):
 
     def load_concentration(self, ctx, eq):
         raise NotImplementedError()
+
+    def output_concentration(self, ctx, eq):
+        variables = ctx.varsOf(eq)
+        c = variables['c']
+        ctx.outputCell([eq, 'c'], c, unit=ctx.units.concentration)
+        ctx.outputCell([eq, 'charge'], c*eq.ze, unit=ctx.units.charge_density)
+        if 'ct' in variables:
+            ctx.output([eq, 'ct'], variables['ct'],
+                       unit=ctx.units.dconcentration_dt)

@@ -16,5 +16,8 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-version = '0.0.16'
-release = version
+import scipy.constants
+
+
+def wavelength_to_photon_energy(wavelength):
+    return scipy.constants.Planck*scipy.constants.speed_of_light/wavelength

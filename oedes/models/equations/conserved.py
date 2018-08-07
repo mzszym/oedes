@@ -51,8 +51,7 @@ class ConservedSpecies(ChargedSpecies, ConservationEquation):
         c = variables['x']
         ct = variables['xt']
         variables.update(dict(c=c, ct=ct))
-        ctx.outputCell([eq, 'c'], c, unit=ctx.units.concentration)
-        ctx.output([eq, 'ct'], ct, unit=ctx.units.dconcentration_dt)
+        self.output_concentration(ctx, eq)
 
     def load(self, ctx, eq):
         super(ConservedSpecies, self).load(ctx, eq)

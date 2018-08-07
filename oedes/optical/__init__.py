@@ -16,4 +16,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-from .simple import *
+from .import func
+from .func import Material, ConstFunctionOfWavelength, InterpolatedFunctionOfWavelength
+from .import databases
+from .transfer import *

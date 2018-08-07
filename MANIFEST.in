@@ -3,4 +3,6 @@ include README.md
 include doc/*.ipynb
 include doc/*.rst
 include doc/conf.py
+include oedes/optical/test_materials/*.yml
+include oedes/optical/spectra/*.zip
 recursive-include examples *.ipynb *.py

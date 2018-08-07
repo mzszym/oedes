@@ -32,7 +32,9 @@ __all__ = [
     'Equal',
     'FermiLevelEqual',
     'FermiLevelEqualElectrode',
-    'AppliedVoltage']
+    'AppliedVoltage',
+    'LocalThermalEquilibrium',
+    'LocalThermalEquilibriumContact']
 
 
 class DirichletBC(BoundaryEquation):
@@ -167,3 +169,7 @@ class FermiLevelEqualElectrode(DirichletBC):
             self.image_correction(ctx, eq.owner_eq, ixto)
         c_electrode = dos.concentration(ctx, eq.owner_eq, ixto, Ef_electrode)
         return c_electrode
+
+
+LocalThermalEquilibrium = FermiLevelEqual
+LocalThermalEquilibriumContact = FermiLevelEqualElectrode

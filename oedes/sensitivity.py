@@ -18,20 +18,20 @@
 
 from .context import context, const_solution_vector
 from . import ad
-from .solver import _matrixsolve, spsolve_scipy
+from .solver import _matrixsolve, spsolve_scipy, SolverObject
 import numpy as np
 
 __all__ = ['sensitivity_analysis', 'add_sensitivity']
 
 
-class sensitivity_analysis(object):
+class sensitivity_analysis(SolverObject):
     def __init__(self, sparams, function='J', spsolve=spsolve_scipy):
         self.sensitivity = {}
         self.function = function
         self.sparams = sparams
         self.spsolve = spsolve
-        self.g = {}
-        self.dg = {}
+        self._g = {}
+        self._dg = {}
 
     def goal(self, solution, time, x, xt, params, full_output):
         return full_output[self.function]
@@ -65,7 +65,7 @@ class sensitivity_analysis(object):
         params = self.sparams.asdict(solution.params, p)
         full_output = {}
         F = solution.model.residuals(
-            solution.time, x, xt, params, full_output=full_output)
+            solution.time, x, xt, params, full_output=full_output, solver=self)
         G = self.goal(solution, solution.time, x, xt, params, full_output)
 
         def split(g):
@@ -78,11 +78,17 @@ class sensitivity_analysis(object):
         dx_dp = _matrixsolve(self.spsolve, dF_dx, b, scaling)
         self.sensitivity[id(solution)] = dx_dp
         d = dG_dx.dot(dx_dp) + dG_dxold.dot(dxold) + dG_dp
-        self.g[id(solution)] = G.value
-        self.dg[id(solution)] = d
+        self._g[id(solution)] = G.value
+        self._dg[id(solution)] = d
 
     def add_hook(self, context):
         return self.process(context.solution)
+
+    def g(self, c):
+        return [self._g[id(u)] for u in c.trajectory]
+
+    def dg(self, c):
+        return [self._dg[id(u)] for u in c.trajectory]
 
 
 def add_sensitivity(context, *args, **kwargs):

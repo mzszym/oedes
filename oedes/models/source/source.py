@@ -18,6 +18,7 @@
 
 from oedes.utils import Calculation
 from oedes import functions
+from oedes.models.equations import TransportedSpecies
 
 __all__ = ['BulkSource', 'LangevinRecombination', 'DirectRecombination']
 
@@ -62,6 +63,7 @@ class _Recombination(BulkSource):
     def __init__(self, *args, **kwargs):
         output_name = kwargs.pop('output_name', 'R')
         name = kwargs.pop('name', None)
+        self.skip_intrinsic = kwargs.pop('skip_intrinsic', False)
         if len(args) == 2:
             electron_eq, hole_eq = args
             self.semiconductor = None
@@ -114,6 +116,8 @@ class _Recombination(BulkSource):
         return ctx.common_param([eq.electron_eq, eq.hole_eq], 'npi')
 
     def intrinsic(self, ctx, eq):
+        if self.skip_intrinsic:
+            return 0.
         if eq.semiconductor is not None:
             return self.intrinsic_from_semiconductor(ctx, eq)
         else:
@@ -124,6 +128,10 @@ class LangevinRecombination(_Recombination):
     def evaluate_recombination(self, ctx, eq):
         nvars = ctx.varsOf(eq.electron_eq)
         pvars = ctx.varsOf(eq.hole_eq)
+        if not isinstance(self.electron_eq, TransportedSpecies):
+            nvars = dict(c=nvars['c'], mu_cell=0.)
+        if not isinstance(self.hole_eq, TransportedSpecies):
+            pvars = dict(c=pvars['c'], mu_cell=0.)
         epsilon = ctx.varsOf(eq.electron_eq.poisson)['epsilon']
         return functions.LangevinRecombination(nvars['mu_cell'], pvars['mu_cell'], nvars['c'], pvars['c'],
                                                epsilon, self.intrinsic(ctx, eq))

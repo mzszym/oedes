@@ -39,7 +39,7 @@ class OhmicBCPoisson(AppliedVoltage):
 
     def potential(self, ctx, eq):
         return self.voltage(
-            ctx, eq) + getitem(ctx.varsOf(eq.semiconductor)['Ef'], eq._getIdx())
+            ctx, eq) + getitem(ctx.varsOf(eq.semiconductor)['Efv'], eq._getIdx())
 
 
 class OhmicBCSpecies(DirichletBC):

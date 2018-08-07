@@ -242,7 +242,7 @@ class context_plotting:
     def E(self, *args, **kwargs):
         if 'settings' not in kwargs:
             kwargs['settings'] = self.default_settings_E
-        self.selector(r'(.*\.)?(?P<label>E)$', *args, face=True, **kwargs)
+        self.selector(r'(.*\.)?(?P<label>E)$', *args, **kwargs)
 
     def Ef(self, *args, **kwargs):
         if 'settings' not in kwargs:

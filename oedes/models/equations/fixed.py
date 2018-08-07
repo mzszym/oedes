@@ -40,3 +40,4 @@ class FixedCharge(ChargedSpecies):
     def load_concentration(self, ctx, eq):
         c = self.density(eq.mesh, ctx, eq)
         ctx.varsOf(eq).update(c=c, j=None)
+        self.output_concentration(ctx, eq)

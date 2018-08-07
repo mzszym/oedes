@@ -16,5 +16,13 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-version = '0.0.16'
-release = version
+import oedes.optical.test_materials as M
+from oedes.optical.spectra import AM1_5
+
+
+def test_materials():
+    pass
+
+
+def test_spectra():
+    pass

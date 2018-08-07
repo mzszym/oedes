@@ -199,9 +199,9 @@ class context(object):
         import oedes.mpl as mpl
         return mpl.forcontext(self)
 
-    def mpl(self, fig, ax):
+    def mpl(self, *args, **kwargs):
         import oedes.mpl as mpl
-        return mpl.forcontext(self, fig, ax)
+        return mpl.forcontext(self, *args, **kwargs)
 
     # Interpolating transient simulation
     def _find(self, time):
