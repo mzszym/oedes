@@ -21,6 +21,7 @@ from six import BytesIO, PY2
 from oedes.optical.func import FunctionOfWavelength, makeComplexFunctionOfWavelength, InterpolatedFunctionOfWavelength, ConstFunctionOfWavelength
 import numpy as np
 import yaml
+from oedes.optical.func import Material
 
 __all__ = ['RefractiveIndexInfoMaterial']
 
@@ -158,12 +159,12 @@ def gen_from_str(s):
     return np.genfromtxt(BytesIO(s))
 
 
-class RefractiveIndexInfoMaterial(object):
+class RefractiveIndexInfoMaterial(Material):
     def _warn(self, message):
         if not self.ignore_warnings:
             warnings.warn(message, RefractiveIndexInfoMaterialWarning)
 
-    def __init__(self, stream, ignore_warnings=False):
+    def __init__(self, stream, name=None, ignore_warnings=False):
         self.ignore_warnings = ignore_warnings
         if isinstance(stream, str):
             with open(stream, 'rb') as f:
@@ -200,7 +201,7 @@ class RefractiveIndexInfoMaterial(object):
         else:
             self.data = None
 
-        self.refractive_index = self.data
+        super(RefractiveIndexInfoMaterial, self).__init__(refractive_index=self.data, name=name)
 
     def _process_tabulated(self, data, args):
         rows = gen_from_str(data['data'])

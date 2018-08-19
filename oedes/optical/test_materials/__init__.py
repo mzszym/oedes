@@ -24,18 +24,18 @@ Glass = RefractiveIndexInfoMaterial(
     os.path.join(
         path,
         'glass.yml'),
-    ignore_warnings=True)
+    ignore_warnings=True, name='glass')
 Al = RefractiveIndexInfoMaterial(
     os.path.join(
         path,
         'al.yml'),
-    ignore_warnings=True)
+    ignore_warnings=True, name='aluminium')
 PEDOT_PSS = RefractiveIndexInfoMaterial(
-    os.path.join(path, 'pedot_pss.yml'), ignore_warnings=True)
+    os.path.join(path, 'pedot_pss.yml'), ignore_warnings=True, name='PEDOT:PSS')
 P3HT_PC61BM = RefractiveIndexInfoMaterial(
-    os.path.join(path, 'p3ht_pc61bm.yml'), ignore_warnings=True)
+    os.path.join(path, 'p3ht_pc61bm.yml'), ignore_warnings=True, name='P3HT:PCBM')
 ITO = RefractiveIndexInfoMaterial(
     os.path.join(
         path,
         'ito.yml'),
-    ignore_warnings=True)
+    ignore_warnings=True, name='ITO')

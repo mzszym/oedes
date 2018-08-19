@@ -96,30 +96,28 @@ class PowerCalculation(object):
                                        (k_i*(1+np.conj(r))*(1-r)).real / k_i.real,
                                        (k_i_c*(1.+r)*(1.-np.conj(r))).real / k_i_c.real)
 
-
 class AbsorptionCalculation(object):
-    def __init__(self, kz, z, vw, polarization_is_s, n, n0, theta, theta0):
-        v, w = vw
+    def __init__(self, kz, z, vw, polarization_is_s, n, n0, theta, theta0, all_values=True):
         # Amplitude of forward-moving wave is Ef, backwards is Eb
-        Ef = v * np.exp(1j * kz * z[:, np.newaxis])
-        Eb = w * np.exp(-1j * kz * z[:, np.newaxis])
+        Ef = vw[0] * np.exp(1j * kz * z)
+        Eb = vw[1] * np.exp(-1j * kz * z)
         c0 = np.cos(theta0)
         c = np.cos(theta)
         ds = 1. / (n0*c0).real
         dp = 1. / (n0*np.conj(c0)).real
-        poyn = np.where(polarization_is_s, (n*c*np.conj(Ef+Eb)*(Ef-Eb)).real * ds,
+        self.poyn = np.where(polarization_is_s, (n*c*np.conj(Ef+Eb)*(Ef-Eb)).real * ds,
                         (n*np.conj(c)*(Ef+Eb)*np.conj(Ef-Eb)).real * dp)
+        if not all_values:
+            return
         p_ = abs(Ef+Eb)
         q_ = abs(Ef-Eb)
         p = p_*p_
         q = q_*q_
-        absor = np.where(polarization_is_s, (n*c*kz*p).imag *
+        self.absor = np.where(polarization_is_s, (n*c*kz*p).imag *
                          ds, (n*np.conj(c)*(kz*q-np.conj(kz)*p)).imag * dp)
         Ex = np.where(polarization_is_s, 0, (Ef - Eb) * c)
         Ey = np.where(polarization_is_s, Ef + Eb, 0)
         Ez = np.where(polarization_is_s, 0, (-Ef - Eb) * np.sin(theta))
-        self.poyn = poyn
-        self.absor = absor
         self.E = (Ex, Ey, Ez)
         self.z = z
 
@@ -217,14 +215,22 @@ class TransferMatrixResult:
                                for i, layer in enumerate(layers))
         self.n = n
         self.polarization_is_s = polarization_is_s
+        a = AbsorptionCalculation(self.result['kz_list'], 0., (self.result['vw_list'][:,0,:],self.result['vw_list'][:,1,:]), polarization_is_s, n, n[0], self.result['th_list'], self.result['th_list'][0], all_values=False)
+        self.incident_power_by_layer = a.poyn[1:]
+        self.T = self.result['T']
+        self.R = self.result['R']
+
 
     def absorption(self, layer, x):
         assert np.all(x >= 0)
         assert np.all(x <= layer.thickness)
         layer_number = self.layer_dict[id(layer)]
         th_list = self.result['th_list']
-        return AbsorptionCalculation(self.result['kz_list'][layer_number], x, self.result['vw_list'][layer_number],
+        return AbsorptionCalculation(self.result['kz_list'][layer_number], x[:, np.newaxis], self.result['vw_list'][layer_number],
                                      self.polarization_is_s, self.n[layer_number], self.n[0], th_list[layer_number], th_list[0])
+
+    def layer_index(self, layer):
+        return self.layer_dict[id(layer)]
 
 
 class NormalIncidenceResultForLayer(object):
@@ -234,10 +240,8 @@ class NormalIncidenceResultForLayer(object):
         self.tmm = ni.tmm
         self.result = self.tmm.absorption(layer, x)
         self.layer = layer
+        self._integrate = ni.integrate
         self.x = x
-
-    def _integrate(self, y):
-        return np.trapz(y*self.density, self.wavelengths, axis=1)
 
     def light_power(self):
         return self._integrate(self.result.poyn)
@@ -265,10 +269,20 @@ class NormalIncidence:
         self.wavelengths = wavelengths
         self.density = spectrum(wavelengths)
         self.tmm = TransferMatrixResult(layers, True, 0, wavelengths)
+        self.layers = layers
+        self.incident_power_by_layer = self.integrate(self.tmm.incident_power_by_layer)
+        self.T = self.integrate(self.tmm.T)
+        self.R = self.integrate(self.tmm.R)
 
     def in_layer(self, layer, x):
         return NormalIncidenceResultForLayer(self, layer, x)
 
     def total_absorption_in_layer(self, layer):
-        return np.diff(self.in_layer(layer, np.asarray(
-            [layer.thickness, 0])).light_power())
+        i = self.tmm.layer_index(layer)
+        return self.incident_power_by_layer[i-1]-self.incident_power_by_layer[i]
+
+    def integrate(self, y, axis=None):
+        return np.trapz(y*self.density, self.wavelengths, axis=y.ndim-1)
+
+    def illuminating_power(self):
+        return self.integrate(np.asarray(1))

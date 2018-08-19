@@ -72,5 +72,6 @@ class makeComplexFunctionOfWavelength(object):
 
 
 class Material(object):
-    def __init__(self, refractive_index):
+    def __init__(self, refractive_index, name=None):
         self.refractive_index = refractive_index
+        self.name = name
