@@ -10,6 +10,7 @@ Organic Electronic Device Simulator (oedes) documentation
    install
    tutorial
    physics
+   optics
    examples
    reference
 
