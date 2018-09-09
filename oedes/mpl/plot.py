@@ -145,11 +145,11 @@ class Settings:
         xlabel='s',
         xscale='log',
         yscale='log')
-    j_t_us = dict(ylabel=r'$\mathrm{A \ m^{-2}}$', xlabel='$\mu s$', xunit='u')
+    j_t_us = dict(ylabel=r'$\mathrm{A \ m^{-2}}$', xlabel=r'$\mu s$', xunit='u')
     j_mAcm_t_us = dict(
         yunit=10,
         ylabel=r'$\mathrm{mA \ cm^{-2}}$',
-        xlabel='$\mu s$',
+        xlabel=r'$\mu s$',
         xunit='u')
 
 
