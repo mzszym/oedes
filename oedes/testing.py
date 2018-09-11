@@ -227,7 +227,7 @@ def unipolar(L, polarity='p'):
         'electrode1.voltage': 0,
         'electrode0.workfunction': 0,
         'electrode1.workfunction': 0,
-        prefix + '.level': 0,
+        prefix + '.energy': 0,
         prefix + '.N0': 1e27,
         prefix + '.mu': 1e-9
     }
@@ -266,7 +266,7 @@ def bilayer(L0, L1, polarity='p'):
             s.bc = [FermiLevelEqualElectrode(ename)]
             prefix = name + '.' + s.prefix
             params.update({
-                prefix + '.level': 0,
+                prefix + '.energy': 0,
                 prefix + '.N0': 1e27,
                 prefix + '.mu': 1e-9
             })

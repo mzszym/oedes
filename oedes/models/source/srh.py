@@ -34,11 +34,11 @@ class SRH(_Recombination):
         if ctx.solver.poissonOnly:
             return
         Vt = ctx.varsOf(eq.electron_eq.thermal)['Vt']
-        Et = ctx.param(eq, 'level')
+        Et = ctx.param(eq, 'energy')
         ni = ctx.param(eq.electron_eq, 'N0') * \
-            exp((ctx.param(eq.electron_eq, 'level') - Et) / Vt)
+            exp((Et - ctx.param(eq.electron_eq, 'energy')) / Vt)
         pi = ctx.param(eq.hole_eq, 'N0') * \
-            exp((Et - ctx.param(eq.hole_eq, 'level')) / Vt)
+            exp((ctx.param(eq.hole_eq, 'energy') - Et) / Vt)
         Cn = ctx.param(eq.electron_eq, self.name, 'trate')
         Cp = ctx.param(eq.hole_eq, self.name, 'trate')
         n = ctx.varsOf(eq.electron_eq)['c']

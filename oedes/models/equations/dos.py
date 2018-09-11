@@ -16,7 +16,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-__all__ = ['BandEnergy', 'BandLevelFromParams', 'WithDOS', 'DOS']
+__all__ = ['BandEnergy', 'BandEnergyFromParams', 'WithDOS', 'DOS']
 
 from oedes.utils import SubEquation
 from .charged import ChargedSpecies
@@ -31,11 +31,11 @@ class BandEnergy(SubEquation):
         raise NotImplementedError()
 
 
-class BandLevelFromParams(BandEnergy):
-    "Band energy as `.level`` parameter"
+class BandEnergyFromParams(BandEnergy):
+    "Band energy as `.energy`` parameter"
 
     def energy(self, parent, ctx, parent_eq):
-        return -ctx.param(parent_eq, 'level')
+        return ctx.param(parent_eq, 'energy')
 
 
 class WithDOS(ChargedSpecies):
@@ -57,7 +57,7 @@ class WithDOS(ChargedSpecies):
 
     def __init__(self, *args, **kwargs):
         dos = kwargs.pop('dos', None)
-        band = kwargs.pop('band', BandLevelFromParams())
+        band = kwargs.pop('band', BandEnergyFromParams())
         super(WithDOS, self).__init__(*args, **kwargs)
         self.dos = dos
         self.band = band

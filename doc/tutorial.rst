@@ -105,8 +105,8 @@ The physical parameters are provided as ``dict``.
     ...     'Nd':1e24,
     ...     'hole.mu':1,
     ...     'electron.mu':1,
-    ...     'hole.level':1.1,
-    ...     'electron.level':0,
+    ...     'hole.energy':-1.1,
+    ...     'electron.energy':0,
     ...     'electrode0.voltage':0,
     ...     'electrode1.voltage':0,
     ...     'hole.N0':1e27,
@@ -124,7 +124,7 @@ Other parameters are in form ``name.parameter``. ``name`` is passed to the equat
 
 then the corresponding mobility parameter would be ``zzz.mu```.
 
-The mobilities ``electron.mu`` and ``hole.mu`` are given in :math:`\mathrm{m^2 / (V s)}`, therefore are equal to 1000 :math:`\mathrm{cm^2 (V s)}` each. In the example above, instead of specifying electron affinity and band-gap, the energies of both bands are specified directly in `level` parameters, in eV. The voltages are applied to Ohmic contacts are specified by ``electrode0.voltage`` and ``electrode1.voltage``, in Volts.  ``N0`` denotes the total density of states, in :math:`\mathrm{1/m^3}`.
+The mobilities ``electron.mu`` and ``hole.mu`` are given in :math:`\mathrm{m^2 / (V s)}`, therefore are equal to 1000 :math:`\mathrm{cm^2 (V s)}` each. In the example above, instead of specifying electron affinity and band-gap, the energies of both bands are specified directly in `energy` parameters, in eV. The voltages are applied to Ohmic contacts are specified by ``electrode0.voltage`` and ``electrode1.voltage``, in Volts.  ``N0`` denotes the total density of states, in :math:`\mathrm{1/m^3}`.
 
 params
 ~~~~~~
@@ -135,7 +135,7 @@ Summary of most common parameters is given below (`*` denotes prefix):
 
 - `T` [K]: ambient temperature in fixed temperature simulation
 - `*.mu` [m^2/(Vs)]: charge carrier mobility, `*` is charge carrier
-- `*.level` [V]: HOMO/LUMO level, -E/e, `*` is charge carrier
+- `*.energy` [V]: HOMO/LUMO level, in eV, `*` is charge carrier
 - `*.voltage` [V]: applied voltage, `*` is electrode
 - `*.N0` [1/(m^3)]: total density of states, `*` is electronic charge carrier
 - `*.workfunction` [V]: workfunction divided by elementary charge W/e, `*` is electrode 

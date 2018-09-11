@@ -29,7 +29,7 @@ def make_simple_device(voltage=0., polarity='p',
     mesh = mesh1d(x)
     electronic_device(model, mesh, polarity)
     params = {'T': 300., 'electrode0.voltage': voltage, 'electrode0.workfunction': 0, 'electrode1.voltage': 0, 'electrode1.workfunction': 0,
-              'hole.N0': 1e27, 'electron.N0': 1e27, 'hole.mu': 1e-9, 'electron.mu': 1e-9, 'electron.level': 0, 'hole.level': 0, 'epsilon_r': 3.}
+              'hole.N0': 1e27, 'electron.N0': 1e27, 'hole.mu': 1e-9, 'electron.mu': 1e-9, 'electron.energy': 0, 'hole.energy': 0, 'epsilon_r': 3.}
     model.setUp()
     return model, mesh, params
 

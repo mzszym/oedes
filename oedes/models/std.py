@@ -165,9 +165,9 @@ def bulk_heterojunction_params(
         'electron.N0': Nc,
         'hole.N0': Nv,
         'generation.I': 1.,
-        'electron.level': 0.,
+        'electron.energy': 0.,
         'electrode0.workfunction': bandgap - barrier,
-        'hole.level': bandgap,
+        'hole.energy': -bandgap,
         'electrode1.workfunction': barrier,
         'electrode0.voltage': 0.,
         'electrode1.voltage': 0.

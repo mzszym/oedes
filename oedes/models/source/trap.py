@@ -45,13 +45,13 @@ class TrapSource(BulkSource):
     def evaluate(self, ctx, eq):
         if ctx.solver.poissonOnly:
             return
-        transportlevel = ctx.param(eq.transport_eq,  'level')
+        transportenergy = ctx.param(eq.transport_eq,  'energy')
         trate = ctx.param(eq.trap_eq, 'trate')
         if self.rrate_param:
             rrate = ctx.param(eq.trap_eq, 'rrate')
         else:
-            traplevel = ctx.param(eq.trap_eq, 'level')
-            depth = (transportlevel - traplevel) * eq.transport_eq.z
+            trapenergy = ctx.param(eq.trap_eq, 'energy')
+            depth = (trapenergy - transportenergy) * eq.transport_eq.z
             rrate = trate * \
                 exp(-depth / ctx.varsOf(eq.transport_eq.thermal)['Vt'])
         transportN0 = ctx.param(eq.transport_eq, 'N0')
