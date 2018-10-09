@@ -19,8 +19,13 @@
 from oedes.utils import Calculation
 from oedes import functions
 from oedes.models.equations import TransportedSpecies
+from oedes.ad import sum
 
-__all__ = ['BulkSource', 'LangevinRecombination', 'DirectRecombination']
+__all__ = [
+    'BulkSource',
+    'LangevinRecombination',
+    'DirectRecombination',
+    'OutcouplingCalculation']
 
 
 class BulkSource(Calculation):
@@ -95,6 +100,7 @@ class _Recombination(BulkSource):
             eq.evaluate.depends(eq.semiconductor.load)
         else:
             eq.semiconductor = None
+        eq.mesh = eq.electron_eq.mesh
 
     def intrinsic_from_semiconductor(self, ctx, eq):
         svars = ctx.varsOf(eq.semiconductor)
@@ -105,10 +111,11 @@ class _Recombination(BulkSource):
         if ctx.solver.poissonOnly:
             return
         R = self.evaluate_recombination(ctx, eq)
+        ctx.varsOf(eq)['R'] = R
         ctx.outputCell([eq,
                         self.output_name],
                        R,
-                       mesh=eq.electron_eq.mesh,
+                       mesh=eq.mesh,
                        unit=ctx.units.dconcentration_dt)
         self.add(ctx, R, minus=[eq.electron_eq, eq.hole_eq])
 
@@ -147,3 +154,28 @@ class DirectRecombination(_Recombination):
             (ctx.varsOf(eq.electron_eq)['c'] *
              ctx.varsOf(eq.hole_eq)['c'] -
              self.intrinsic(ctx, eq))
+
+
+class OutcouplingCalculation(Calculation):
+    def __init__(self, recombination_eqs, name='outcoupling', output_name='L'):
+        super(OutcouplingCalculation, self).__init__(name)
+        self.recombination_eqs = recombination_eqs
+        self.output_name = output_name
+
+    def initDiscreteEq(self, builder, obj):
+        super(OutcouplingCalculation, self).initDiscreteEq(builder, obj)
+        obj.recombination_eqs = tuple(map(builder.get, self.recombination_eqs))
+        for eq in obj.recombination_eqs:
+            obj.evaluate.depends(eq.evaluate)
+
+    def evaluate(self, ctx, eq):
+        if not ctx.wants_output:
+            return
+        if ctx.solver.poissonOnly:
+            return
+        total = 0
+        for recombination_eq in eq.recombination_eqs:
+            total = total + \
+                sum(recombination_eq.mesh.cells['center']
+                    * ctx.varsOf(recombination_eq)['R'])
+        ctx.output([eq, self.output_name], total)
