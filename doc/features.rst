@@ -9,7 +9,7 @@ Features
 
 **Electric**
 
-* Cell centered finite-volume
+* Cell centered finite-volume with arbitrary mesh spacing
 * Scharfetter-Gummel discretization
 * Conservation of charge guaranteed in a converged solution
 * Arbitrary number of layers
@@ -21,7 +21,7 @@ Features
 **Optical**
 
 * Transfer matrix approach
-* Arbitrary number of layers
+* Arbitrary illumination
 
 **Analysis**
 

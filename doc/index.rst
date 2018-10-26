@@ -12,7 +12,6 @@ Organic Electronic Device Simulator (oedes) documentation
    physics
    optics
    examples
-   reference
 
 Indices and tables
 ==================
