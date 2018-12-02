@@ -18,6 +18,8 @@
 
 import numpy as np
 from sparsegrad import *
+from sparsegrad.functions.functions import *
+from sparsegrad.functions.func import *
 from sparsegrad.base import *
 from sparsegrad import forward
 from sparsegrad.forward import nvalue
