@@ -16,6 +16,8 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
+from sparsegrad.impl import multipledispatch
+
 from . import ad
 from . import functions
 from . import fvm

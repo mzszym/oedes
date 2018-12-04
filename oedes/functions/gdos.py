@@ -16,15 +16,16 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-from oedes import ad
+from oedes import ad, multipledispatch
 import numpy as np
 import scipy.special
 import scipy.integrate
 import scipy.interpolate
-import scipy.version
-from packaging.version import Version
+from sparsegrad.impl import scipy_version_major, scipy_version_minor
 
-if Version(scipy.version.version) < Version('0.19.0'):
+from oedes.ad import nvalue, asdifferentiable, isnvalue
+
+if (scipy_version_major, scipy_version_minor) < (0, 19):
     class make_interp_spline:
         def __init__(self, x, y, k=3):
             self.obj = scipy.interpolate.UnivariateSpline(x, y, s=0, k=k)
@@ -38,7 +39,7 @@ else:
 
 
 class GaussFermiBase_(object):
-    """
+    r"""
     Abstract implementation of Gauss-Fermi integral:
     I(a,b) = 1/sqrt(pi) \int_{-\infty}{+\infty} dx exp(-x^2)/(1.+exp(a*x+b))
 
@@ -108,11 +109,14 @@ class GaussFermiBase_(object):
             return e['value'] - v, e['db'], e['d2bb']
         return self._halley(function, b0, tol, self.maxiter)
 
-    def _value(self, a, b):
-        v = self._nevaluate(
-            ad.nvalue(a), ad.nvalue(b), need_value=True, need_da=isinstance(
-                a, ad.forward.value), need_db=isinstance(
-                b, ad.forward.value))
+    _value = multipledispatch.GenericMethod('_value')
+    _dvdb = multipledispatch.GenericMethod('_dvdb')
+    _b = multipledispatch.GenericMethod('_b')
+
+    @_value.register(object, object)
+    def _value_(self, a, b):
+        v = self._nevaluate(nvalue(a), nvalue(
+            b), need_value=True, need_da=not isnvalue(a), need_db=not isnvalue(b))
 
         def _I(a, b):
             return v['value']
@@ -120,20 +124,12 @@ class GaussFermiBase_(object):
         def _I_deriv(args, value):
             yield lambda: v['da']
             yield lambda: v['db']
-        return ad.custom_function(_I, _I_deriv)(a, b)
+        return ad.apply(asdifferentiable(_I, _I_deriv), (a, b))
 
-    def _dvdb(self, a, b):
-        v = self._nevaluate(
-            ad.nvalue(a),
-            ad.nvalue(b),
-            need_value=False,
-            need_db=True,
-            need_d2ab=isinstance(
-                a,
-                ad.forward.value),
-            need_d2bb=isinstance(
-                b,
-                ad.forward.value))
+    @_dvdb.register(object, object)
+    def _dvdb_(self, a, b):
+        v = self._nevaluate(nvalue(a), nvalue(b), need_value=False, need_db=True,
+                            need_d2ab=not isnvalue(a), need_d2bb=not isnvalue(b))
 
         def _dIdb(a, b):
             return v['db']
@@ -141,10 +137,11 @@ class GaussFermiBase_(object):
         def _dIdb_deriv(args, value):
             yield lambda: v['d2ab']
             yield lambda: v['d2bb']
-        return ad.custom_function(_dIdb, _dIdb_deriv)(a, b)
+        return ad.apply(asdifferentiable(_dIdb, _dIdb_deriv), (a, b))
 
-    def _b(self, a, v, b0=None):
-        b = self._nsolve_b(ad.nvalue(a), ad.nvalue(v), b0=b0)
+    @_b.register(object, object)
+    def _b_(self, a, v, b0=None):
+        b = self._nsolve_b(nvalue(a), nvalue(v), b0=b0)
 
         def _b(a, v):
             return b
@@ -153,12 +150,11 @@ class GaussFermiBase_(object):
             a_, i_ = args
             b = value
             values = self._nevaluate(
-                a_, b, need_da=isinstance(
-                    a, ad.forward.value), need_db=True)
+                a_, b, need_da=not isnvalue(a), need_db=True)
             dbdI = 1. / values['db']
             yield lambda: -dbdI * values['da']
             yield lambda: dbdI
-        return ad.custom_function(_b, _b_deriv)(a, v)
+        return ad.apply(asdifferentiable(_b, _b_deriv), (a, v))
 
     def __call__(self, a, b):
         return self.I(a, b)
@@ -198,10 +194,7 @@ class GaussFermiLogBase(GaussFermiBase_):
 
     def dIdb(self, a, b):
         v = self._nevaluate(
-            ad.nvalue(a), ad.nvalue(b), need_value=True, need_da=isinstance(
-                a, ad.forward.value), need_db=True, need_d2ab=isinstance(
-                a, ad.forward.value), need_d2bb=isinstance(
-                b, ad.forward.value))
+            nvalue(a), nvalue(b), need_value=True, need_da=not isnvalue(a), need_db=True, need_d2ab=not isnvalue(a), need_d2bb=not isnvalue(b))
         i = ad.exp(v['value'])
 
         def _dIdb(a, _):
@@ -210,7 +203,7 @@ class GaussFermiLogBase(GaussFermiBase_):
         def _dIdb_deriv(args, value):
             yield lambda: i * (v['d2ab'] + v['da'] * v['db'])
             yield lambda: i * (v['d2bb'] + v['db'] * v['db'])
-        return ad.custom_function(_dIdb, _dIdb_deriv)(a, b)
+        return ad.apply(asdifferentiable(_dIdb, _dIdb_deriv), (a, b))
 
 
 class GaussFermiIntegralH(GaussFermiBase):

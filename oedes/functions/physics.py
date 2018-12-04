@@ -17,6 +17,7 @@
 #
 
 import scipy.constants
+import scipy.special
 from oedes import ad
 import numpy as np
 
@@ -60,7 +61,7 @@ def ManyRakavy(mu, V, L):
 
 
 def OnsagerFunction(b):
-    """
+    r"""
     Onsager function of real variable J1(2 \sqrt(-2b))/sqrt(-2b), b>=0
     """
     def f(x):
@@ -70,4 +71,5 @@ def OnsagerFunction(b):
         x, = args
         u = 2. * x
         yield lambda: 2. * (scipy.special.i0(u) - f) / x
-    return ad.custom_function(f, df)(np.sqrt(2. * b + 1e-10))
+
+    return ad.apply(ad.asdifferentiable(f, df), (np.sqrt(2. * b + 1e-10), ))

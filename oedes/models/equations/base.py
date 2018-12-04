@@ -16,7 +16,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-from oedes.ad import getitem, sparsesum, dot
+from oedes.ad import getitem, sparsesum_bare, dot
 from oedes.utils import EquationWithMesh, Equation
 import itertools
 import weakref
@@ -46,8 +46,8 @@ class ConservationEquation(EquationWithMesh):
         variables = ctx.varsOf(eq)
         yield eq.residuals(eq.mesh.internal, flux, cellsource=source, celltransient=transient)
         n = len(eq.mesh.boundary.cells)
-        bc_FdS = sparsesum(n, variables['boundary_FdS'])
-        bc_source = sparsesum(n, variables['boundary_sources'])
+        bc_FdS = sparsesum_bare(n, variables['boundary_FdS'])
+        bc_source = sparsesum_bare(n, variables['boundary_sources'])
         if flux is not None:
             bc_FdS = dot(eq.mesh.boundary.fluxsum, flux) + bc_FdS
         if source is not None:

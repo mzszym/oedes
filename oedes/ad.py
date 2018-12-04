@@ -17,17 +17,9 @@
 #
 
 import numpy as np
-from sparsegrad import *
-from sparsegrad.functions.functions import *
-from sparsegrad.functions.func import *
-from sparsegrad.base import *
+from sparsegrad.functions import *
 from sparsegrad import forward
-from sparsegrad.forward import nvalue
 from sparsegrad.sparsevec import *
-
-
-def isscalar(x):
-    return not forward.nvalue(x).shape
 
 
 def getitem(x, idx):
@@ -39,14 +31,3 @@ def getitem(x, idx):
         return x
     else:
         return x[idx]
-
-
-sparsesum = sparsesum_bare
-
-
-def custom_function(f, df):
-    f = expr.wrapped_func(func.custom_func(f, df))
-
-    def _(*args):
-        return f(*args)
-    return f

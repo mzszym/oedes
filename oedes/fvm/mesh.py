@@ -40,6 +40,9 @@ class meshpart(object):
     def ncells(self):
         return len(self.cells)
 
+    def ndof(self):
+        return self.ncells
+
     @property
     def x(self):
         return self.cells['center']

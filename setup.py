@@ -103,7 +103,7 @@ setup(name='oedes',
       install_requires=[
           'numpy',
           'scipy',
-          'sparsegrad>=0.0.9',
+          'sparsegrad>=0.0.11',
           'tqdm>=4.19',
           'nose',
           'matplotlib',

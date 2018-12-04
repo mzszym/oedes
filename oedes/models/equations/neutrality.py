@@ -22,7 +22,8 @@ import numpy as np
 import scipy.optimize
 from oedes.utils import Calculation
 from oedes.models import solver
-from oedes.ad import exp, log, sqrt, nvalue, custom_function, forward, isscalar
+from oedes.ad import exp, log, sqrt, nvalue, forward, isscalar, asdifferentiable
+from oedes import ad
 from .dos import WithDOS
 from .boltzmann import BoltzmannDOS
 from oedes.functions import brent
@@ -131,7 +132,8 @@ class Electroneutrality(Calculation):
             if not isscalar(dg):
                 dg = dg.tocsr().diagonal()
             # must create value : (Ef_value, 1/dg*g')
-            Ef = custom_function(lambda *args: Ef_value, lambda *args: dg)(g)
+            Ef = ad.apply(asdifferentiable(
+                lambda *args: Ef_value, lambda *args: dg), (g,))
         else:
             Ef = Ef_value
         info = dict((id(eq), c) for eq, c in conc(Ef, False))

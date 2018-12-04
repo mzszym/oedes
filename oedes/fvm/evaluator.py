@@ -19,7 +19,7 @@
 import numpy as np
 from .cell import FVMBoundaryEquation, FVMConservationEquation
 import scipy.sparse.csgraph
-from oedes.ad import sparsesum
+from oedes.ad import sparsesum_bare
 from oedes.model import model
 
 
@@ -83,8 +83,8 @@ class FVMEvaluator(model):
             (np.ones_like(i), (i, j)), shape=(self.ndof,) * 2)
         nlabels, labels = scipy.sparse.csgraph.connected_components(
             g, directed=False, return_labels=True)
-        self.bc_label_volume = sparsesum(nlabels, ((labels[eq.idx], eq.mesh.cells[
-                                         'volume']) for eq in self.equations if isinstance(eq, FVMConservationEquation)))
+        self.bc_label_volume = sparsesum_bare(nlabels, ((labels[eq.idx], eq.mesh.cells[
+            'volume']) for eq in self.equations if isinstance(eq, FVMConservationEquation)))
         self.bc_labels = labels
         for eq in self._all_conservation():
             eq.boundary_labels = self.bc_labels[eq.idx[eq.mesh.boundary.idx]]
@@ -93,7 +93,7 @@ class FVMEvaluator(model):
         return FVMEvalContext(self, target)
 
     def finalize(self, target, bc_conservation):
-        bc_label_conservation = sparsesum(
+        bc_label_conservation = sparsesum_bare(
             len(self.bc_labels), bc_conservation)
         for eq in self.equations:
             if isinstance(eq, FVMConservationEquation):
