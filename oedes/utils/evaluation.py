@@ -86,6 +86,9 @@ class EvaluationContext(object):
         self._vardict[k] = varobj
         return varobj
 
+    def loadForEquation(self, equation, variable):
+        return variable[equation.idx]
+
     def varsOf(self, obj):
         assert not isinstance(obj, Computation)
         return self._vardict[id(obj)]

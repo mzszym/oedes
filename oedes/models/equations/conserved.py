@@ -63,8 +63,8 @@ class ConservedSpecies(ChargedSpecies, ConservationEquation):
     def calculate_fluxes(self, ctx, eq, v, D):
         c = ctx.varsOf(eq)['c']
         if not ctx.wants_output:
-            return eq.faceflux(c=c, v=v, D=D, full_output=False)
-        f = eq.faceflux(c=c, v=v, D=D, full_output=True)
+            return eq.faceflux(c, v, D, full_output=False)
+        f = eq.faceflux(c, v, D, full_output=True)
         ctx.outputFace([eq, 'j'], f['flux'], unit=ctx.units.flux)
         ctx.outputFace([eq, 'jdrift'], f['flux_v'],
                        unit=ctx.units.flux)

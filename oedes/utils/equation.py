@@ -48,8 +48,8 @@ class Equation(Computation):
 
     def load(self, ctx, eq):
         vars = ctx.newVars(eq)
-        vars['x'] = ctx.gvars['x'][eq.idx]
-        vars['xt'] = ctx.gvars['xt'][eq.idx]
+        vars['x'] = ctx.loadForEquation(eq, ctx.gvars['x'])
+        vars['xt'] = ctx.loadForEquation(eq, ctx.gvars['xt'])
 
     def evaluate(self, ctx, eq):
         pass

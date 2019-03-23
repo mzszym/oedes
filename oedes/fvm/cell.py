@@ -86,6 +86,9 @@ class FVMBoundaryEquation(DiscreteEquation):
     def _getOtherIdx(self):
         return _boundaryIdx(self.other_eq, self.other_boundary)
 
+    def loadSolutionValue(self, state):
+        return state[self._getIdx()]
+
     def init(self, builder):
         if self.other_eq_lookup is None:
             self.other_eq = None

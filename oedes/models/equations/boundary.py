@@ -42,7 +42,7 @@ class DirichletBC(BoundaryEquation):
         if ctx.solver.poissonOnly and not isinstance(
                 self.owner_eq, PoissonEquation):
             return
-        yield eq._getDof(), ctx.varsOf(eq.owner_eq)['x'][eq._getIdx()] - self.value(ctx, eq)
+        yield eq._getDof(), eq.loadSolutionValue(ctx.varsOf(eq.owner_eq)['x']) - self.value(ctx, eq)
 
     def value(self, ctx, eq):
         raise NotImplementedError()

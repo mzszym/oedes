@@ -18,11 +18,11 @@
 
 __all__ = ['BoltzmannDOS']
 
-from oedes.ad import where, nvalue
+from oedes.ad import where, nvalue, exp, log
 import logging
-import numpy as np
 from oedes import logs
 from .dos import DOS
+import numpy as np
 
 
 class BoltzmannDOS(DOS):
@@ -45,7 +45,7 @@ class BoltzmannDOS(DOS):
                     (eq.prefix, self.c_eps, np.amin(
                         nvalue(c_raw))))
         N0 = self.N0(ctx, eq)
-        return ctx.varsOf(eq.thermal)['Vt'] * np.log(c / N0)
+        return ctx.varsOf(eq.thermal)['Vt'] * log(c / N0)
 
     def Ef_correction(self, ctx, eq):
         return 0.
@@ -76,7 +76,7 @@ class BoltzmannDOS(DOS):
                         'c(%r): clipping Ef/kT>0, max(Ef/kT)=%r' %
                         (eq.prefix, np.amax(
                             nvalue(v_raw))))
-        c = np.exp(v) * N0
+        c = exp(v) * N0
         return c
 
     def D_mu(self, parent_eq, ctx, eq):
