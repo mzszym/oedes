@@ -151,7 +151,7 @@ class FVMConservationEquation(DiscreteEquation):
         self.bc_dof_is_free = np.ones_like(mesh.boundary.idx, dtype=np.bool)
         self.boundary_labels = None
 
-    def residuals(self, part, facefluxes, celltransient=0., cellsource=0.):
+    def residuals(self, part, facefluxes, celltransient, cellsource):
         """
         Calculate FVM residuals
 
@@ -179,10 +179,8 @@ class FVMConservationEquation(DiscreteEquation):
             FdS = 0.
         else:
             FdS = ad.dot(part.fluxsum, facefluxes)
-        if not ad.isscalar(celltransient):
-            celltransient = celltransient[idx]
-        if not ad.isscalar(cellsource):
-            cellsource = cellsource[idx]
+        celltransient = ad.getitem(celltransient, idx)
+        cellsource = ad.getitem(cellsource, idx)
         return self.idx[idx], -FdS / \
             part.cells['volume'] + celltransient - cellsource
 

@@ -16,7 +16,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-from oedes.ad import getitem, sparsesum_bare, dot
+from oedes import ad
 from oedes.utils import EquationWithMesh, Equation
 import itertools
 import weakref
@@ -44,15 +44,15 @@ class ConservationEquation(EquationWithMesh):
 
     def residuals(self, ctx, eq, flux, source=None, transient=0.):
         variables = ctx.varsOf(eq)
-        yield eq.residuals(eq.mesh.internal, flux, cellsource=source, celltransient=transient)
+        yield eq.residuals(eq.mesh.internal, flux, transient, source)
         n = len(eq.mesh.boundary.cells)
-        bc_FdS = sparsesum_bare(n, variables['boundary_FdS'])
-        bc_source = sparsesum_bare(n, variables['boundary_sources'])
+        bc_FdS = ad.sparsesum_bare(n, variables['boundary_FdS'])
+        bc_source = ad.sparsesum_bare(n, variables['boundary_sources'])
         if flux is not None:
-            bc_FdS = dot(eq.mesh.boundary.fluxsum, flux) + bc_FdS
+            bc_FdS = ad.dot(eq.mesh.boundary.fluxsum, flux) + bc_FdS
         if source is not None:
-            bc_source = getitem(source, eq.mesh.boundary.idx) + bc_source
-        bc_transient = getitem(transient, eq.mesh.boundary.idx)
+            bc_source = ad.getitem(source, eq.mesh.boundary.idx) + bc_source
+        bc_transient = ad.getitem(transient, eq.mesh.boundary.idx)
         variables['total_boundary_FdS'] = bc_FdS
         variables['total_boundary_sources'] = bc_source
         variables['total_boundary_transient'] = bc_transient

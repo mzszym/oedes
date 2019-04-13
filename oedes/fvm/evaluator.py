@@ -19,7 +19,7 @@
 import numpy as np
 from .cell import FVMBoundaryEquation, FVMConservationEquation
 import scipy.sparse.csgraph
-from oedes.ad import sparsesum_bare
+from oedes import ad
 from oedes.model import model
 
 
@@ -83,7 +83,7 @@ class FVMEvaluator(model):
             (np.ones_like(i), (i, j)), shape=(self.ndof,) * 2)
         nlabels, labels = scipy.sparse.csgraph.connected_components(
             g, directed=False, return_labels=True)
-        self.bc_label_volume = sparsesum_bare(nlabels, ((labels[eq.idx], eq.mesh.cells[
+        self.bc_label_volume = ad.sparsesum_bare(nlabels, ((labels[eq.idx], eq.mesh.cells[
             'volume']) for eq in self.equations if isinstance(eq, FVMConservationEquation)))
         self.bc_labels = labels
         for eq in self._all_conservation():
@@ -93,7 +93,7 @@ class FVMEvaluator(model):
         return FVMEvalContext(self, target)
 
     def finalize(self, target, bc_conservation):
-        bc_label_conservation = sparsesum_bare(
+        bc_label_conservation = ad.sparsesum_bare(
             len(self.bc_labels), bc_conservation)
         for eq in self.equations:
             if isinstance(eq, FVMConservationEquation):
@@ -101,7 +101,7 @@ class FVMEvaluator(model):
                     eq.bc_dof_is_free]
                 i = eq.idx[eq.mesh.boundary.idx[bc_free_dof]]
                 j = self.bc_labels[i]
-                yield i, bc_label_conservation[j] * (1. / self.bc_label_volume[j])
+                yield i, ad.getitem(bc_label_conservation, j) * (1. / self.bc_label_volume[j])
 
     def scaling(self, params):
         xscaling = np.ones_like(self.X)

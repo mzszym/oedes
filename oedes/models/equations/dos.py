@@ -21,7 +21,7 @@ __all__ = ['BandEnergy', 'BandEnergyFromParams', 'WithDOS', 'DOS']
 from oedes.utils import SubEquation
 from .charged import ChargedSpecies
 from oedes.models import solver
-from oedes.ad import getitem
+from oedes import ad
 
 
 class BandEnergy(SubEquation):
@@ -114,7 +114,7 @@ class DOS(SubEquation):
     def _concentration(self, ctx, eq, idx, imref, ref, **kwargs):
         assert eq.z in [1, -1]
         if idx is not None:
-            Eband = getitem(ctx.varsOf(eq)[ref], idx)
+            Eband = ad.getitem(ctx.varsOf(eq)[ref], idx)
         else:
             Eband = ctx.varsOf(eq)[ref]
         return self.c(ctx, eq, -(imref - Eband) / eq.z, **kwargs)
